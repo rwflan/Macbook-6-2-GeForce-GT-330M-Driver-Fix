@@ -67,11 +67,28 @@ If local-console testing still produces `4101`, `141`, or full reboots after thi
 - Move back to a supported Windows 10 build if this install is actually Windows 11-era (`22000`) on an unsupported GPU stack
 - Replace/retire the logic board or avoid local use of the discrete GPU entirely
 
+## BIOS Preboot Fix
+
+This machine is currently booting Windows in legacy BIOS mode, not UEFI. That means the `rEFInd` / EFI-shell `mm` method from the archived LaptopVideo2Go thread does not apply directly to this install.
+
+For this specific machine state, the equivalent fix is a BIOS-side GRUB chainloader that runs the original four `setpci` writes before handing control to Windows Boot Manager:
+
+- `setpci -s "00:01.0" 3e.b=8`
+- `setpci -s "01:00.0" 04.b=7`
+- `setpci -s "00:00.0" 50.W=2`
+- `setpci -s "00:00.0" 54.B=3`
+
+`Install-GT330M-BiosPrebootFix.ps1` downloads a BIOS-capable `grub4dos` build, places `grldr` and a generated `menu.lst` on `C:\`, creates a dedicated `bootmgr` entry called `Windows 11 (GT330M preboot fix)`, and sets that entry as the default while keeping the standard Windows entry as fallback in the boot menu.
+
+`Remove-GT330M-BiosPrebootFix.ps1` removes that boot entry and restores the previous default boot settings and any overwritten root files.
+
 ## Scripts
 
 - `scripts/Apply-GT330M-StabilityFix.ps1`
 - `scripts/Restore-GT330M-StabilityFix.ps1`
 - `scripts/Collect-GT330M-Evidence.ps1`
+- `scripts/Install-GT330M-BiosPrebootFix.ps1`
+- `scripts/Remove-GT330M-BiosPrebootFix.ps1`
 
 ## Usage
 
@@ -98,4 +115,18 @@ Collect evidence after a repro:
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\\scripts\\Collect-GT330M-Evidence.ps1
+```
+
+Install the BIOS preboot fix:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\\scripts\\Install-GT330M-BiosPrebootFix.ps1
+```
+
+Remove the BIOS preboot fix:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\\scripts\\Remove-GT330M-BiosPrebootFix.ps1
 ```
