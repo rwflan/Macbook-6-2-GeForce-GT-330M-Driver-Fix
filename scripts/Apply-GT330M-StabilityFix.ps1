@@ -307,10 +307,10 @@ if ($PSCmdlet.ShouldProcess("power plan", "switch to High performance and disabl
 }
 
 if ($PSCmdlet.ShouldProcess($graphicsKey, "set conservative TDR thresholds")) {
-    Set-RegistryDword -Path $graphicsKey -Name "TdrDelay" -Value 10
-    Set-RegistryDword -Path $graphicsKey -Name "TdrDdiDelay" -Value 20
-    Set-RegistryDword -Path $graphicsKey -Name "TdrLimitTime" -Value 180
-    Set-RegistryDword -Path $graphicsKey -Name "TdrLimitCount" -Value 10
+    Set-RegistryDword -Path $graphicsKey -Name "TdrDelay" -Value 20
+    Set-RegistryDword -Path $graphicsKey -Name "TdrDdiDelay" -Value 30
+    Set-RegistryDword -Path $graphicsKey -Name "TdrLimitTime" -Value 600
+    Set-RegistryDword -Path $graphicsKey -Name "TdrLimitCount" -Value 20
 }
 
 if ($PSCmdlet.ShouldProcess($dwmKey, "disable multiplane overlay test mode")) {

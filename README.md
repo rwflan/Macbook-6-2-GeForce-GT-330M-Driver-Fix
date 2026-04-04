@@ -31,11 +31,11 @@ That combination strongly suggests this is not a simple "wrong driver version" i
   - hibernation / fast startup
   - wake timers
 - Preserves the existing lid-close and hardware button actions so normal sleep behavior still works
-- Sets conservative TDR values:
-  - `TdrDelay = 10`
-  - `TdrDdiDelay = 20`
-  - `TdrLimitTime = 180`
-  - `TdrLimitCount = 10`
+- Sets more forgiving TDR values for slow wake/display recovery on the GT 330M:
+  - `TdrDelay = 20`
+  - `TdrDdiDelay = 30`
+  - `TdrLimitTime = 600`
+  - `TdrLimitCount = 20`
 - Disables DWM multiplane overlay testing by setting `OverlayTestMode = 5`
 - Configures full local dumps for `dwm.exe` and `explorer.exe`
 - Disables unnecessary NVIDIA components that commonly hook desktop composition on legacy systems:
@@ -86,6 +86,7 @@ For this specific machine state, the equivalent fix is a BIOS-side GRUB chainloa
 - `scripts/Apply-GT330M-StabilityFix.ps1`
 - `scripts/Restore-GT330M-StabilityFix.ps1`
 - `scripts/Collect-GT330M-Evidence.ps1`
+- `scripts/Install-BootCamp5033-AppleComponents.ps1`
 - `scripts/Install-GT330M-BiosPrebootFix.ps1`
 - `scripts/Remove-GT330M-BiosPrebootFix.ps1`
 
@@ -114,6 +115,13 @@ Collect evidence after a repro:
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\\scripts\\Collect-GT330M-Evidence.ps1
+```
+
+Install the Apple-only Boot Camp 5.0.5033 runtime update:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\\scripts\\Install-BootCamp5033-AppleComponents.ps1
 ```
 
 Install the BIOS preboot fix:
