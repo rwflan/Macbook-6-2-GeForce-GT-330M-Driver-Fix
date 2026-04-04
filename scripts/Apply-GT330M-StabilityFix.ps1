@@ -303,10 +303,6 @@ if ($PSCmdlet.ShouldProcess("power plan", "switch to High performance and disabl
     Set-PowerSettingIndex -Subgroup SUB_SLEEP -Setting HYBRIDSLEEP -ACValue 0 -DCValue 0
     Set-PowerSettingIndex -Subgroup SUB_SLEEP -Setting HIBERNATEIDLE -ACValue 0 -DCValue 0
     Set-PowerSettingIndex -Subgroup SUB_SLEEP -Setting RTCWAKE -ACValue 0 -DCValue 0
-    Set-PowerSettingIndex -Subgroup SUB_BUTTONS -Setting LIDACTION -ACValue 0 -DCValue 0
-    Set-PowerSettingIndex -Subgroup SUB_BUTTONS -Setting PBUTTONACTION -ACValue 3 -DCValue 3
-    Set-PowerSettingIndex -Subgroup SUB_BUTTONS -Setting SBUTTONACTION -ACValue 0 -DCValue 0
-    Set-PowerSettingIndex -Subgroup SUB_BUTTONS -Setting UIBUTTON_ACTION -ACValue 2 -DCValue 2
     powercfg /SETACTIVE SCHEME_CURRENT | Out-Null
 }
 
