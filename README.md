@@ -28,10 +28,9 @@ That combination strongly suggests this is not a simple "wrong driver version" i
 - Disables PCIe Link State Power Management on AC and battery
 - Disables remaining suspend/resume triggers that still hit the failing display path:
   - display idle timeout
-  - lid-close sleep
-  - sleep-button sleep
   - hibernation / fast startup
   - wake timers
+- Preserves the existing lid-close and hardware button actions so normal sleep behavior still works
 - Sets conservative TDR values:
   - `TdrDelay = 10`
   - `TdrDdiDelay = 20`
