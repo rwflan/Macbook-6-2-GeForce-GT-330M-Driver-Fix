@@ -8,12 +8,14 @@ The live machine shows all of the following:
 
 - Hardware model: `Apple Inc. MacBookPro6,2`
 - GPU: `NVIDIA GeForce GT 330M`
-- Driver: `21.21.13.4201` (`342.01`, dated 2016-11-14)
+- Driver after rollback: `9.18.13.4181` (`341.81`, dated 2015-08-17)
 - OS build: `22000` (`21H2`)
 - System log: repeated `Display` event `4101` (`Display driver nvlddmkm stopped responding and has successfully recovered`)
 - Windows Error Reporting: `LiveKernelEvent 141`
 - Active power plan before fix: `Balanced`
 - PCIe Link State Power Management before fix: `Maximum power savings` on AC and DC
+- Post-rollback evidence still showed fresh `4101` / `141` recoveries after sleep-style display transitions
+- `nvidia-smi` showed the GT 330M sitting at roughly `81 C` and `P0` on the desktop, which makes thermal margin part of the problem
 
 That combination strongly suggests this is not a simple "wrong driver version" issue. The machine is already using the legacy NVIDIA branch expected for the GT 330M. The practical Windows trigger is the GPU/PCIe/display path timing out and being reset by WDDM TDR. On this model, that is commonly aggravated by power-state transitions and by the age-related fragility of the discrete GPU/logic board.
 
@@ -24,17 +26,36 @@ That combination strongly suggests this is not a simple "wrong driver version" i
 - Backs up the current graphics-driver registry branch and active power scheme
 - Switches the system to `High performance`
 - Disables PCIe Link State Power Management on AC and battery
+- Disables remaining suspend/resume triggers that still hit the failing display path:
+  - display idle timeout
+  - lid-close sleep
+  - sleep-button sleep
+  - hibernation / fast startup
+  - wake timers
 - Sets conservative TDR values:
   - `TdrDelay = 10`
   - `TdrDdiDelay = 20`
   - `TdrLimitTime = 180`
   - `TdrLimitCount = 10`
+- Disables DWM multiplane overlay testing by setting `OverlayTestMode = 5`
+- Configures full local dumps for `dwm.exe` and `explorer.exe`
+- Disables unnecessary NVIDIA components that commonly hook desktop composition on legacy systems:
+  - `NVIDIA Display Driver Service`
+  - `NVIDIA Stereoscopic 3D Driver Service`
+  - `NVIDIA GeForce Experience Service`
+  - `NVIDIA Network Service`
+  - `NVIDIA Streamer Service`
+  - `NVIDIA Streamer Network Service`
+  - `NvBackend`, `nvtray`, `nvxdsync`, and related helper processes
+- Forces NVIDIA Stereo3D state off in the registry
+- Quarantines the `3D Vision` user-mode DLLs that were still loading into `dwm.exe`
+- Disables transparency and taskbar/window animations for the current user to cut compositor load on the desktop
 
 The script does **not** disable TDR completely, because that can turn recoverable hangs into full system freezes.
 
 ## Why this is the right first fix
 
-- It addresses the clear machine-specific misconfiguration found during inspection: aggressive PCIe power savings on a legacy mobile NVIDIA device.
+- It addresses the concrete triggers found during inspection: PCIe/display power transitions, the NVIDIA desktop helper chain, and excessive idle thermal load.
 - It reduces false-positive or borderline TDR trips without masking the GPU forever.
 - It is safe to apply over RDP and easy to roll back.
 
@@ -50,6 +71,7 @@ If local-console testing still produces `4101`, `141`, or full reboots after thi
 
 - `scripts/Apply-GT330M-StabilityFix.ps1`
 - `scripts/Restore-GT330M-StabilityFix.ps1`
+- `scripts/Collect-GT330M-Evidence.ps1`
 
 ## Usage
 
@@ -70,3 +92,10 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 Or run `scripts\\Run-Restore-GT330M-StabilityFix.cmd` and accept the UAC prompt.
+
+Collect evidence after a repro:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\\scripts\\Collect-GT330M-Evidence.ps1
+```

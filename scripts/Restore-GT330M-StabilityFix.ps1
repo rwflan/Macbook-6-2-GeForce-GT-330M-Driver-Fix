@@ -8,6 +8,43 @@ $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent $PSScriptRoot
 $graphicsKey = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
+$dwmKey = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
+$sessionPowerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
+$personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+$explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+$windowMetricsKey = "HKCU:\Control Panel\Desktop\WindowMetrics"
+$runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+$werLocalDumpsKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
+$stereo3DKey = "HKLM:\SOFTWARE\WOW6432Node\NVIDIA Corporation\Global\Stereo3D"
+$visionDir = "C:\Program Files (x86)\NVIDIA Corporation\3D Vision"
+$powerSettings = @(
+    @{ Name = "PcieAspm"; Subgroup = "SUB_PCIEXPRESS"; Setting = "ASPM" },
+    @{ Name = "VideoIdle"; Subgroup = "SUB_VIDEO"; Setting = "VIDEOIDLE" },
+    @{ Name = "StandbyIdle"; Subgroup = "SUB_SLEEP"; Setting = "STANDBYIDLE" },
+    @{ Name = "HybridSleep"; Subgroup = "SUB_SLEEP"; Setting = "HYBRIDSLEEP" },
+    @{ Name = "HibernateIdle"; Subgroup = "SUB_SLEEP"; Setting = "HIBERNATEIDLE" },
+    @{ Name = "RtcWake"; Subgroup = "SUB_SLEEP"; Setting = "RTCWAKE" },
+    @{ Name = "LidAction"; Subgroup = "SUB_BUTTONS"; Setting = "LIDACTION" },
+    @{ Name = "PowerButtonAction"; Subgroup = "SUB_BUTTONS"; Setting = "PBUTTONACTION" },
+    @{ Name = "SleepButtonAction"; Subgroup = "SUB_BUTTONS"; Setting = "SBUTTONACTION" },
+    @{ Name = "UiButtonAction"; Subgroup = "SUB_BUTTONS"; Setting = "UIBUTTON_ACTION" }
+)
+
+function Set-RegistryString {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    if (-not (Test-Path -Path $Path)) {
+        New-Item -Path $Path -Force | Out-Null
+    }
+    New-ItemProperty -Path $Path -Name $Name -PropertyType String -Value $Value -Force | Out-Null
+}
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -70,6 +107,25 @@ if ($state.PcieAspmRaw -match "Current DC Power Setting Index:\s+0x([0-9a-fA-F]+
     }
 }
 
+$savedPowerSettings = @{}
+if ($null -ne $state.PSObject.Properties["PowerSettings"]) {
+    foreach ($property in $state.PowerSettings.PSObject.Properties) {
+        $savedPowerSettings[$property.Name] = $property.Value
+    }
+}
+
+foreach ($setting in $powerSettings) {
+    if ($savedPowerSettings.ContainsKey($setting.Name)) {
+        $saved = $savedPowerSettings[$setting.Name]
+        if (($null -ne $saved.AC) -and ($null -ne $saved.DC)) {
+            if ($PSCmdlet.ShouldProcess("power plan", "restore $($setting.Name)")) {
+                powercfg /SETACVALUEINDEX SCHEME_CURRENT $($setting.Subgroup) $($setting.Setting) ([int]$saved.AC) | Out-Null
+                powercfg /SETDCVALUEINDEX SCHEME_CURRENT $($setting.Subgroup) $($setting.Setting) ([int]$saved.DC) | Out-Null
+            }
+        }
+    }
+}
+
 $expectedNames = "TdrLevel", "TdrDelay", "TdrDdiDelay", "TdrLimitTime", "TdrLimitCount"
 $savedValues = @{}
 if ($state.GraphicsRegistryValues) {
@@ -87,6 +143,170 @@ foreach ($name in $expectedNames) {
     elseif (Get-ItemProperty -Path $graphicsKey -Name $name -ErrorAction SilentlyContinue) {
         if ($PSCmdlet.ShouldProcess($graphicsKey, "remove $name")) {
             Remove-ItemProperty -Path $graphicsKey -Name $name -ErrorAction Stop
+        }
+    }
+}
+
+$savedDwmValues = @{}
+if ($state.DwmRegistryValues) {
+    foreach ($property in $state.DwmRegistryValues.PSObject.Properties) {
+        $savedDwmValues[$property.Name] = $property.Value
+    }
+}
+
+foreach ($name in "OverlayTestMode") {
+    if ($savedDwmValues.ContainsKey($name)) {
+        if ($PSCmdlet.ShouldProcess($dwmKey, "restore $name")) {
+            New-ItemProperty -Path $dwmKey -Name $name -PropertyType DWord -Value ([int]$savedDwmValues[$name]) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $dwmKey -Name $name -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($dwmKey, "remove $name")) {
+            Remove-ItemProperty -Path $dwmKey -Name $name -ErrorAction Stop
+        }
+    }
+}
+
+$savedSessionPowerValues = @{}
+if ($null -ne $state.PSObject.Properties["SessionPowerValues"]) {
+    foreach ($property in $state.SessionPowerValues.PSObject.Properties) {
+        $savedSessionPowerValues[$property.Name] = $property.Value
+    }
+}
+
+if ($savedSessionPowerValues.ContainsKey("HiberbootEnabled")) {
+    if ([int]$savedSessionPowerValues["HiberbootEnabled"] -eq 0) {
+        if ($PSCmdlet.ShouldProcess($sessionPowerKey, "restore hibernation disabled state")) {
+            powercfg /HIBERNATE OFF | Out-Null
+            New-ItemProperty -Path $sessionPowerKey -Name "HiberbootEnabled" -PropertyType DWord -Value 0 -Force | Out-Null
+        }
+    }
+    else {
+        if ($PSCmdlet.ShouldProcess($sessionPowerKey, "restore hibernation enabled state")) {
+            powercfg /HIBERNATE ON | Out-Null
+            New-ItemProperty -Path $sessionPowerKey -Name "HiberbootEnabled" -PropertyType DWord -Value ([int]$savedSessionPowerValues["HiberbootEnabled"]) -Force | Out-Null
+        }
+    }
+}
+
+$savedUserRegistryValues = @{}
+if ($null -ne $state.PSObject.Properties["UserRegistryValues"]) {
+    foreach ($property in $state.UserRegistryValues.PSObject.Properties) {
+        $savedUserRegistryValues[$property.Name] = $property.Value
+    }
+}
+
+if ($savedUserRegistryValues.ContainsKey("Personalize")) {
+    $value = $savedUserRegistryValues["Personalize"].EnableTransparency
+    if ($null -ne $value) {
+        if ($PSCmdlet.ShouldProcess($personalizeKey, "restore EnableTransparency")) {
+            New-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+}
+
+if ($savedUserRegistryValues.ContainsKey("ExplorerAdvanced")) {
+    $value = $savedUserRegistryValues["ExplorerAdvanced"].TaskbarAnimations
+    if ($null -ne $value) {
+        if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "restore TaskbarAnimations")) {
+            New-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+}
+
+if ($savedUserRegistryValues.ContainsKey("WindowMetrics")) {
+    $value = $savedUserRegistryValues["WindowMetrics"].MinAnimate
+    if ($null -ne $value) {
+        if ($PSCmdlet.ShouldProcess($windowMetricsKey, "restore MinAnimate")) {
+            Set-RegistryString -Path $windowMetricsKey -Name "MinAnimate" -Value ([string]$value)
+        }
+    }
+}
+
+$savedStereoValues = @{}
+if ($state.Stereo3DRegistryValues) {
+    foreach ($property in $state.Stereo3DRegistryValues.PSObject.Properties) {
+        $savedStereoValues[$property.Name] = $property.Value
+    }
+}
+
+foreach ($name in "DrsEnable", "StereoDefaultOn", "StereoDefaultONSet", "StereoAdjustEnable", "EnableWindowedMode", "EnableNvMsStereoSync") {
+    if ($savedStereoValues.ContainsKey($name)) {
+        if ($PSCmdlet.ShouldProcess($stereo3DKey, "restore $name")) {
+            New-ItemProperty -Path $stereo3DKey -Name $name -PropertyType DWord -Value ([int]$savedStereoValues[$name]) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $stereo3DKey -Name $name -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($stereo3DKey, "remove $name")) {
+            Remove-ItemProperty -Path $stereo3DKey -Name $name -ErrorAction Stop
+        }
+    }
+}
+
+if ($null -ne $state.PSObject.Properties["RunValues"]) {
+    foreach ($property in $state.RunValues.PSObject.Properties) {
+        if ($PSCmdlet.ShouldProcess($runKey, "restore autorun $($property.Name)")) {
+            New-ItemProperty -Path $runKey -Name $property.Name -PropertyType String -Value ([string]$property.Value) -Force | Out-Null
+        }
+    }
+}
+
+$knownRunValues = "NvBackend", "ShadowPlay"
+foreach ($name in $knownRunValues) {
+    $savedRunValueNames = @()
+    if ($null -ne $state.PSObject.Properties["RunValues"]) {
+        $savedRunValueNames = @($state.RunValues.PSObject.Properties | ForEach-Object Name)
+    }
+    if (($null -eq $state.PSObject.Properties["RunValues"]) -or (-not ($savedRunValueNames -contains $name))) {
+        if (Get-ItemProperty -Path $runKey -Name $name -ErrorAction SilentlyContinue) {
+            if ($PSCmdlet.ShouldProcess($runKey, "remove autorun $name")) {
+                Remove-ItemProperty -Path $runKey -Name $name -ErrorAction Stop
+            }
+        }
+    }
+}
+
+if ($null -ne $state.PSObject.Properties["ServiceStartModes"]) {
+    foreach ($property in $state.ServiceStartModes.PSObject.Properties) {
+        $service = Get-Service -Name $property.Name -ErrorAction SilentlyContinue
+        if ($service) {
+            $targetStartType = switch -Exact ($property.Value) {
+                "Auto" { "Automatic" }
+                "Manual" { "Manual" }
+                "Disabled" { "Disabled" }
+                default { $null }
+            }
+            if ($targetStartType) {
+                if ($PSCmdlet.ShouldProcess($property.Name, "restore service startup type to $targetStartType")) {
+                    Set-Service -Name $property.Name -StartupType $targetStartType
+                }
+            }
+        }
+    }
+}
+
+foreach ($processName in "dwm.exe", "explorer.exe") {
+    $dumpKey = Join-Path $werLocalDumpsKey $processName
+    if (Test-Path -Path $dumpKey) {
+        if ($PSCmdlet.ShouldProcess($dumpKey, "remove local dump configuration")) {
+            Remove-Item -Path $dumpKey -Recurse -Force
+        }
+    }
+}
+
+$quarantineDir = Join-Path $resolvedBackup "3dvision-quarantine"
+if (Test-Path -LiteralPath $quarantineDir) {
+    foreach ($backupFile in Get-ChildItem -LiteralPath $quarantineDir -File) {
+        $targetPath = Join-Path $visionDir $backupFile.Name
+        $disabledPath = $targetPath + ".disabled"
+        if (Test-Path -LiteralPath $disabledPath) {
+            if ($PSCmdlet.ShouldProcess($disabledPath, "remove quarantined disabled file")) {
+                Remove-Item -LiteralPath $disabledPath -Force
+            }
+        }
+        if ($PSCmdlet.ShouldProcess($targetPath, "restore 3D Vision file")) {
+            New-Item -ItemType Directory -Path $visionDir -Force | Out-Null
+            Copy-Item -LiteralPath $backupFile.FullName -Destination $targetPath -Force
         }
     }
 }
