@@ -129,6 +129,14 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\Install-BootCamp5033-AppleComponents.ps1
 ```
 
+## Attribution
+
+This repository's scripts and documentation are maintained by [Syferus](https://github.com/Syferus).
+
+Hardware and model-compatibility notes in this repo are based on public technical references from Apple Support and EveryMac. The detailed source list is in `docs/model-compatibility-analysis.md`.
+
+Apple, Boot Camp, MacBook Pro, Microsoft Windows, NVIDIA, and GeForce are the property of their respective owners. This repository is an independent community project and is not affiliated with or endorsed by Apple, Microsoft, or NVIDIA. Any third-party software downloaded or referenced by these scripts remains subject to its original license and distribution terms.
+
 ## Operational Notes
 
 - Run the apply script, reboot, and then evaluate local-display stability.
