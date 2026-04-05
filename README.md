@@ -55,6 +55,25 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 - `scripts/Run-Restore-GT330M-StabilityFix.cmd`
 - `docs/model-compatibility-analysis.md`
 
+## Similar Model Feasibility
+
+Static analysis suggests the current fix is most likely to transfer to:
+
+- `MacBookPro6,1` (17-inch, Mid 2010): strongest candidate; same `Intel HD + GeForce GT 330M` automatic-switching design as `MacBookPro6,2`
+
+Lower-confidence but still plausible if the symptom is the same `nvlddmkm` / TDR failure on the discrete NVIDIA path:
+
+- `MacBookPro5,3` (15-inch, Mid 2009 higher trims): `9400M + 9600M GT`
+- `MacBookPro5,2` (17-inch, Early/Mid 2009): `9400M + 9600M GT`
+- `MacBookPro5,1` (15-inch, Late 2008 / Early 2009 refresh): `9400M + 9600M GT`
+
+Out of scope:
+
+- integrated-only 13-inch models such as `MacBookPro5,5` and `MacBookPro7,1`
+- 2011 switching models such as `MacBookPro8,2` and `MacBookPro8,3`, which use AMD discrete GPUs rather than NVIDIA
+
+See `docs/model-compatibility-analysis.md` for the full rationale and source-backed notes.
+
 ## Requirements
 
 - Windows with PowerShell
