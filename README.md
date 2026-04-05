@@ -129,6 +129,12 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\Install-BootCamp5033-AppleComponents.ps1
 ```
 
+After applying the fix:
+
+- Reboot before evaluating local-display stability.
+- If the issue still reproduces, the likely remaining cause is the GT 330M hardware path itself.
+- Use the restore script to roll the machine back to its prior configuration.
+
 ## Attribution
 
 This repository's scripts and documentation are maintained by [Syferus](https://github.com/Syferus).
@@ -137,8 +143,6 @@ Hardware and model-compatibility notes in this repo are based on public technica
 
 Apple, Boot Camp, MacBook Pro, Microsoft Windows, NVIDIA, and GeForce are the property of their respective owners. This repository is an independent community project and is not affiliated with or endorsed by Apple, Microsoft, or NVIDIA. Any third-party software downloaded or referenced by these scripts remains subject to its original license and distribution terms.
 
-## Operational Notes
+## License
 
-- Run the apply script, reboot, and then evaluate local-display stability.
-- If the issue still reproduces after the fix, the likely remaining cause is the GT 330M hardware path itself.
-- Use the restore script if you want to roll the machine back to the prior configuration.
+This repository is available under the MIT License. See `LICENSE`.
