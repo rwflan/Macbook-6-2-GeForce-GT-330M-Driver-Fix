@@ -47,6 +47,7 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 
 ## Repository Contents
 
+- `Install-GT330M-StabilityFix.ps1`
 - `scripts/Apply-GT330M-StabilityFix.ps1`
 - `scripts/Restore-GT330M-StabilityFix.ps1`
 - `scripts/Collect-GT330M-Evidence.ps1`
@@ -82,7 +83,21 @@ See `docs/model-compatibility-analysis.md` for the full rationale and source-bac
 
 ## Usage
 
-Apply the fix:
+Recommended install: copy this one-liner into PowerShell and approve the UAC prompt:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $tmp = Join-Path $env:TEMP 'Install-GT330M-StabilityFix.ps1'; try { Invoke-WebRequest 'https://raw.githubusercontent.com/Syferus/Macbook-6-2-GeForce-GT-330M-Driver-Fix/main/Install-GT330M-StabilityFix.ps1' -OutFile $tmp; & $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue } }"
+```
+
+What it does:
+
+- Downloads the latest installer script from `main`
+- Prompts for elevation if needed
+- Downloads a temporary ZIP of this repository
+- Runs `scripts\Apply-GT330M-StabilityFix.ps1`
+- Cleans up the temporary files when finished
+
+Manual apply:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
