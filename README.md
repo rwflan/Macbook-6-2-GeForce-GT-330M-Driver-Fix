@@ -53,6 +53,7 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 - `scripts/Install-BootCamp5033-AppleComponents.ps1`
 - `scripts/Run-Apply-GT330M-StabilityFix.cmd`
 - `scripts/Run-Restore-GT330M-StabilityFix.cmd`
+- `docs/model-compatibility-analysis.md`
 
 ## Requirements
 
