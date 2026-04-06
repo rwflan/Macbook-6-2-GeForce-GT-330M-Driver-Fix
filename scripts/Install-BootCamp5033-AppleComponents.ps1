@@ -2,7 +2,8 @@
 param(
     [string]$DownloadUrl = "https://download.info.apple.com/Mac_OS_X/041-9675.20130314.f8Ji7/BootCamp5.0.5033.zip",
     [string]$ArchivePath = "C:\Temp\BootCamp5.0.5033.zip",
-    [string]$ExtractPath = "C:\Temp\BootCamp5.0.5033"
+    [string]$ExtractPath = "C:\Temp\BootCamp5.0.5033",
+    [switch]$ForceLegacyAppleDriverUpgrade
 )
 
 Set-StrictMode -Version Latest
@@ -27,6 +28,15 @@ function Assert-Administrator {
     $principal = New-Object Security.Principal.WindowsPrincipal($identity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw "Run this script from an elevated PowerShell session."
+    }
+}
+
+function Get-ComputerModel {
+    try {
+        return (Get-CimInstance Win32_ComputerSystem).Model
+    }
+    catch {
+        return $null
     }
 }
 
@@ -108,6 +118,20 @@ function Install-BootCampMsi {
 }
 
 Assert-Administrator
+
+$computerModel = Get-ComputerModel
+if (($computerModel -eq "MacBookPro6,2") -and (-not $ForceLegacyAppleDriverUpgrade)) {
+    throw @"
+This package is blocked by default on MacBookPro6,2.
+
+The Boot Camp 5.0.5033 installer does not stay in user space on this machine. It upgrades Apple HID, Bluetooth, and support drivers and has been linked to 0x10d boot crashes after reboot.
+
+If you truly want to risk reapplying that driver stack, rerun with -ForceLegacyAppleDriverUpgrade.
+To undo an existing install, use:
+.\scripts\Remove-BootCamp5033-AppleComponents.ps1
+"@
+}
+
 Save-CurrentState
 
 if ($PSCmdlet.ShouldProcess($ArchivePath, "download Apple Boot Camp Support Software 5.0.5033")) {
@@ -118,7 +142,7 @@ if ($PSCmdlet.ShouldProcess($ExtractPath, "extract Apple Boot Camp Support Softw
     Expand-Package
 }
 
-if ($PSCmdlet.ShouldProcess($msiPath, "install Apple Boot Camp 5.0.5033 user-space components")) {
+if ($PSCmdlet.ShouldProcess($msiPath, "install Apple Boot Camp 5.0.5033 runtime and driver package")) {
     Install-BootCampMsi
 }
 
@@ -146,6 +170,6 @@ Get-Item $bootCampExe, $appleOssMgrExe, "C:\Windows\System32\drivers\KeyAgent.sy
     Select-Object FullName, @{ Name = "Version"; Expression = { $_.VersionInfo.FileVersion } }, LastWriteTime |
     Format-Table -AutoSize
 
-Write-Host "Installed Apple Boot Camp 5.0.5033 user-space components."
+Write-Host "Installed Apple Boot Camp 5.0.5033 runtime and driver package."
 Write-Host "Backup saved to: $backupDir"
 Write-Host "Reboot Windows before re-testing local sleep/resume and the function row."
