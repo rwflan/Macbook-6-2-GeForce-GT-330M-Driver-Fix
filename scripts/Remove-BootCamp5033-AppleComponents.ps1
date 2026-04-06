@@ -12,6 +12,9 @@ $bootCampRegPath = "HKLM:\SOFTWARE\Apple Inc.\Boot Camp"
 $bootCampExe = "C:\Program Files\Boot Camp\Bootcamp.exe"
 $appleOssMgrExe = "C:\Windows\System32\AppleOSSMgr.exe"
 $keyAgentServiceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\KeyAgent"
+$appleBluetoothHardwareId = "USB\VID_05AC&PID_8218"
+$appleBluetoothServiceName = "AppleBtBc"
+$bluetoothCoreServiceNames = @("bthserv", "BthAvctpSvc", $appleBluetoothServiceName)
 $backupStateFileName = "AppleDrivers-before.json"
 $backupFileNames = @(
     "Bootcamp.exe",
@@ -118,6 +121,19 @@ function Disable-ServiceIfPresent {
     }
 }
 
+function Stop-ServiceIfPresent {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if (-not $service) {
+        return
+    }
+
+    if (($service.Status -ne "Stopped") -and $PSCmdlet.ShouldProcess($Name, "stop service")) {
+        sc.exe stop $Name | Out-Null
+    }
+}
+
 function Invoke-Native {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -127,6 +143,34 @@ function Invoke-Native {
     & $FilePath @ArgumentList
     if ($LASTEXITCODE -ne 0) {
         throw "$FilePath $($ArgumentList -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function Get-AppleBluetoothDeviceInstanceIds {
+    $devices = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.PNPDeviceID -like "$appleBluetoothHardwareId*" -or
+            $_.Name -eq "Apple Broadcom Built-in Bluetooth"
+        } |
+        Select-Object -ExpandProperty PNPDeviceID -Unique
+
+    return @($devices)
+}
+
+function Set-AppleBluetoothDeviceState {
+    param(
+        [Parameter(Mandatory = $true)][string[]]$InstanceIds,
+        [Parameter(Mandatory = $true)][ValidateSet("enable", "disable")][string]$Action
+    )
+
+    foreach ($instanceId in $InstanceIds) {
+        if ([string]::IsNullOrWhiteSpace($instanceId)) {
+            continue
+        }
+
+        if ($PSCmdlet.ShouldProcess($instanceId, "$Action Apple Bluetooth device")) {
+            Invoke-Native -FilePath "pnputil.exe" -ArgumentList @("/$Action-device", $instanceId)
+        }
     }
 }
 
@@ -282,12 +326,24 @@ function Remove-NewAppleDriverPackages {
 Assert-Administrator
 $resolvedBackup = Resolve-BackupPath -RequestedPath $BackupPath
 Save-CurrentState -ResolvedBackup $resolvedBackup
+$appleBluetoothDeviceInstanceIds = @(Get-AppleBluetoothDeviceInstanceIds)
 
 if ($PSCmdlet.ShouldProcess("Boot Camp tray", "stop Boot Camp process")) {
     Get-Process -Name Bootcamp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
 Disable-ServiceIfPresent -Name "KeyAgent"
+
+foreach ($serviceName in $bluetoothCoreServiceNames) {
+    Stop-ServiceIfPresent -Name $serviceName
+}
+
+Get-Service -Name "BluetoothUserService*" -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-ServiceIfPresent -Name $_.Name }
+
+if ($appleBluetoothDeviceInstanceIds.Count -gt 0) {
+    Set-AppleBluetoothDeviceState -InstanceIds $appleBluetoothDeviceInstanceIds -Action "disable"
+}
 
 $rollbackPlans = @(Get-RollbackPlans -ResolvedBackup $resolvedBackup)
 if ($rollbackPlans.Count -gt 0) {
@@ -313,6 +369,10 @@ if ((Test-Path -LiteralPath $keyAgentServiceKey) -and $PSCmdlet.ShouldProcess($k
 
 if ($PSCmdlet.ShouldProcess("Plug and Play", "rescan devices")) {
     Invoke-Native -FilePath "pnputil.exe" -ArgumentList @("/scan-devices")
+}
+
+if ($appleBluetoothDeviceInstanceIds.Count -gt 0) {
+    Set-AppleBluetoothDeviceState -InstanceIds $appleBluetoothDeviceInstanceIds -Action "enable"
 }
 
 Write-Host "Rollback completed."
