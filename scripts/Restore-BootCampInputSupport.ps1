@@ -1,6 +1,9 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$SourceBackupPath
+    [string]$SourceBackupPath,
+    [string]$KeyboardInstallerPath,
+    [string]$BootCampArchivePath = "C:\Temp\BootCamp5.0.5033.zip",
+    [string]$BootCampExtractPath = "C:\Temp\BootCamp5.0.5033"
 )
 
 Set-StrictMode -Version Latest
@@ -12,11 +15,12 @@ $bootCampExe = "C:\Program Files\Boot Camp\Bootcamp.exe"
 $appleOssMgrExe = "C:\Windows\System32\AppleOSSMgr.exe"
 $bootCampVersionsKey = "HKLM:\SOFTWARE\Apple Inc.\Boot Camp\Versions"
 $keyAgentServiceKey = "HKLM:\SYSTEM\CurrentControlSet\Services\KeyAgent"
+$appleKeyboardHardwareId = "USB\VID_05AC&PID_0237&MI_00"
+$appleKeyboardTargetVersion = "5.0.3.0"
 $repairTargets = @(
     @{ FileName = "Bootcamp.exe"; Destination = $bootCampExe },
     @{ FileName = "AppleOSSMgr.exe"; Destination = $appleOssMgrExe },
-    @{ FileName = "KeyAgent.sys"; Destination = "C:\Windows\System32\drivers\KeyAgent.sys" },
-    @{ FileName = "KeyMagic.sys"; Destination = "C:\Windows\System32\drivers\KeyMagic.sys" }
+    @{ FileName = "KeyAgent.sys"; Destination = "C:\Windows\System32\drivers\KeyAgent.sys" }
 )
 $queuedRestores = New-Object System.Collections.Generic.List[string]
 
@@ -45,19 +49,79 @@ function Resolve-SourceBackup {
 
     foreach ($candidate in $candidates) {
         $bootCampPath = Join-Path $candidate.FullName "Bootcamp.exe"
-        $keyMagicPath = Join-Path $candidate.FullName "KeyMagic.sys"
         $keyAgentPath = Join-Path $candidate.FullName "KeyAgent.sys"
 
-        if ((Test-Path -LiteralPath $bootCampPath) -and (Test-Path -LiteralPath $keyMagicPath) -and (Test-Path -LiteralPath $keyAgentPath)) {
+        if ((Test-Path -LiteralPath $bootCampPath) -and (Test-Path -LiteralPath $keyAgentPath)) {
             $bootCampVersion = (Get-Item -LiteralPath $bootCampPath).VersionInfo.FileVersion
-            $keyMagicVersion = (Get-Item -LiteralPath $keyMagicPath).VersionInfo.FileVersion
-            if (($bootCampVersion -eq "5.0.1.0") -and ($keyMagicVersion -eq "5.0.3.0")) {
+            if ($bootCampVersion -eq "5.0.1.0") {
                 return $candidate.FullName
             }
         }
     }
 
     throw "Unable to find a rollback backup containing the Boot Camp 5 keyboard/runtime files."
+}
+
+function Resolve-KeyboardInstaller {
+    param([string]$RequestedPath)
+
+    $defaultInstallerPath = Join-Path $BootCampExtractPath "BootCamp\Drivers\Apple\AppleKeyboardInstaller64.exe"
+    $candidatePath = if ($RequestedPath) { $RequestedPath } else { $defaultInstallerPath }
+
+    if (-not (Test-Path -LiteralPath $candidatePath)) {
+        if (-not (Test-Path -LiteralPath $BootCampArchivePath)) {
+            throw "Apple keyboard installer not found at '$candidatePath', and Boot Camp archive not found at '$BootCampArchivePath'."
+        }
+
+        if ($PSCmdlet.ShouldProcess($BootCampExtractPath, "extract Boot Camp 5.0.5033 to recover the keyboard installer")) {
+            if (Test-Path -LiteralPath $BootCampExtractPath) {
+                Remove-Item -LiteralPath $BootCampExtractPath -Recurse -Force
+            }
+
+            Expand-Archive -LiteralPath $BootCampArchivePath -DestinationPath $BootCampExtractPath -Force
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $candidatePath)) {
+        throw "Apple keyboard installer not found: $candidatePath"
+    }
+
+    return (Resolve-Path -LiteralPath $candidatePath).Path
+}
+
+function Get-AppleKeyboardDriver {
+    Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue |
+        Where-Object {
+            ($_.DeviceID -like "$appleKeyboardHardwareId*") -and
+            ($_.DeviceName -eq "Apple Keyboard")
+        } |
+        Select-Object -First 1
+}
+
+function Get-AppleKeyboardDevice {
+    Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+        Where-Object { $_.PNPDeviceID -like "$appleKeyboardHardwareId*" } |
+        Select-Object -First 1
+}
+
+function Wait-ForAppleKeyboardReady {
+    param([int]$TimeoutSeconds = 120)
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $driver = Get-AppleKeyboardDriver
+        $device = Get-AppleKeyboardDevice
+
+        if ($driver -and $device -and $driver.IsSigned -and ($driver.DriverVersion -eq $appleKeyboardTargetVersion) -and ($device.ConfigManagerErrorCode -eq 0)) {
+            return $driver
+        }
+
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+
+    $driverSummary = $driver | Select-Object DeviceName, DriverVersion, InfName, IsSigned | Format-List | Out-String
+    $deviceSummary = $device | Select-Object Name, Status, ConfigManagerErrorCode, PNPDeviceID | Format-List | Out-String
+    throw "Timed out waiting for the Apple keyboard driver to become healthy.`nDriver:`n$driverSummary`nDevice:`n$deviceSummary"
 }
 
 function Save-CurrentState {
@@ -68,6 +132,7 @@ function Save-CurrentState {
         Files = @{}
         Services = @{}
         BootCampVersions = @{}
+        AppleKeyboardDriver = @{}
     }
 
     foreach ($target in $repairTargets) {
@@ -101,6 +166,16 @@ function Save-CurrentState {
             if ($null -ne $versions.PSObject.Properties[$propertyName]) {
                 $state.BootCampVersions[$propertyName] = $versions.$propertyName
             }
+        }
+    }
+
+    $appleKeyboardDriver = Get-AppleKeyboardDriver
+    if ($appleKeyboardDriver) {
+        $state.AppleKeyboardDriver = @{
+            DeviceId = $appleKeyboardDriver.DeviceID
+            DriverVersion = $appleKeyboardDriver.DriverVersion
+            InfName = $appleKeyboardDriver.InfName
+            IsSigned = $appleKeyboardDriver.IsSigned
         }
     }
 
@@ -171,8 +246,25 @@ function Restore-File {
     }
 }
 
+function Install-AppleKeyboardPackage {
+    param([Parameter(Mandatory = $true)][string]$InstallerPath)
+
+    if ($PSCmdlet.ShouldProcess($InstallerPath, "install the signed Apple keyboard package")) {
+        $process = Start-Process -FilePath $InstallerPath -ArgumentList "/S" -PassThru
+        $null = $process.WaitForExit(120000)
+
+        if (($null -ne $process.ExitCode) -and ($process.ExitCode -ne 0)) {
+            throw "Apple keyboard installer failed with exit code $($process.ExitCode)."
+        }
+
+        $driver = Wait-ForAppleKeyboardReady
+        Write-Host "Apple keyboard package restored with driver $($driver.InfName) version $($driver.DriverVersion)."
+    }
+}
+
 Assert-Administrator
 $resolvedSourceBackup = Resolve-SourceBackup -RequestedPath $SourceBackupPath
+$resolvedKeyboardInstaller = Resolve-KeyboardInstaller -RequestedPath $KeyboardInstallerPath
 Save-CurrentState
 
 Get-Process -Name Bootcamp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -189,6 +281,8 @@ foreach ($target in $repairTargets) {
     Restore-File -SourcePath $sourcePath -DestinationPath $target.Destination
 }
 
+Install-AppleKeyboardPackage -InstallerPath $resolvedKeyboardInstaller
+
 if ((Test-Path -LiteralPath $keyAgentServiceKey) -and $PSCmdlet.ShouldProcess($keyAgentServiceKey, "set KeyAgent start mode to auto")) {
     Set-ItemProperty -Path $keyAgentServiceKey -Name "Start" -Type DWord -Value 2
 }
@@ -204,7 +298,7 @@ if ($PSCmdlet.ShouldProcess("Apple OS Switch Manager", "start service")) {
     Start-Service -Name AppleOSSMgr -ErrorAction SilentlyContinue
 }
 
-if (($queuedRestores -contains "C:\Windows\System32\drivers\KeyMagic.sys") -or ($queuedRestores -contains "C:\Windows\System32\drivers\KeyAgent.sys")) {
+if ($queuedRestores -contains "C:\Windows\System32\drivers\KeyAgent.sys") {
     Write-Warning "Skipping KeyAgent start until the queued driver replacement finishes on the next reboot."
 }
 elseif ($PSCmdlet.ShouldProcess("KeyAgent", "start service")) {
@@ -216,6 +310,7 @@ if ($PSCmdlet.ShouldProcess($bootCampExe, "restart Boot Camp tray")) {
 }
 
 Write-Host "Restored Boot Camp input support from: $resolvedSourceBackup"
+Write-Host "Keyboard installer used: $resolvedKeyboardInstaller"
 Write-Host "Current state backup: $currentBackupDir"
 if ($queuedRestores.Count -gt 0) {
     Write-Host "A reboot is required to finish replacing locked files:"
