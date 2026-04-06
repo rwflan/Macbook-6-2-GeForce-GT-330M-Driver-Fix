@@ -52,6 +52,7 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 - `scripts/Restore-GT330M-StabilityFix.ps1`
 - `scripts/Collect-GT330M-Evidence.ps1`
 - `scripts/Install-BootCamp5033-AppleComponents.ps1`
+- `scripts/Remove-BootCamp5033-AppleComponents.ps1`
 - `scripts/Run-Apply-GT330M-StabilityFix.cmd`
 - `scripts/Run-Restore-GT330M-StabilityFix.cmd`
 - `docs/model-compatibility-analysis.md`
@@ -122,11 +123,20 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\Collect-GT330M-Evidence.ps1
 ```
 
-Install the Apple-only Boot Camp 5.0.5033 runtime update:
+Install the Apple Boot Camp 5.0.5033 runtime update:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\Install-BootCamp5033-AppleComponents.ps1
+```
+
+On `MacBookPro6,2`, that script is now blocked by default unless you pass `-ForceLegacyAppleDriverUpgrade`, because the package upgrades Apple HID/Bluetooth/support drivers and has been linked to `0x10d` boot crashes on this machine.
+
+Roll back the Boot Camp 5.0.5033 Apple component update:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\Remove-BootCamp5033-AppleComponents.ps1
 ```
 
 After applying the fix:
