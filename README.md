@@ -1,128 +1,133 @@
 # MacBookPro6,2 GT 330M Stability Fix
 
-This workspace documents and applies a conservative Windows-side mitigation for the recurring `nvlddmkm` resets seen on the Mid-2010 15-inch MacBook Pro (`MacBookPro6,2`) under Boot Camp.
+PowerShell scripts for diagnosing, applying, and rolling back a conservative Windows-side mitigation for recurring `nvlddmkm` resets on the Mid-2010 15-inch MacBook Pro (`MacBookPro6,2`) running Boot Camp.
 
-## What the evidence says
+## Scope
 
-The live machine shows all of the following:
+This repository focuses on the Windows graphics stack and related power-management settings. It does not change firmware, BIOS, or bootloader configuration.
+
+## Observed Failure Pattern
+
+The machine used to validate this fix showed the following:
 
 - Hardware model: `Apple Inc. MacBookPro6,2`
 - GPU: `NVIDIA GeForce GT 330M`
-- Driver after rollback: `9.18.13.4181` (`341.81`, dated 2015-08-17)
+- Driver: `9.18.13.4181` (`341.81`, dated 2015-08-17)
 - OS build: `22000` (`21H2`)
-- System log: repeated `Display` event `4101` (`Display driver nvlddmkm stopped responding and has successfully recovered`)
+- System log: repeated `Display` event `4101` with `nvlddmkm` recoveries
 - Windows Error Reporting: `LiveKernelEvent 141`
-- Active power plan before fix: `Balanced`
-- PCIe Link State Power Management before fix: `Maximum power savings` on AC and DC
-- Post-rollback evidence still showed fresh `4101` / `141` recoveries after sleep-style display transitions
-- `nvidia-smi` showed the GT 330M sitting at roughly `81 C` and `P0` on the desktop, which makes thermal margin part of the problem
+- Power plan before remediation: `Balanced`
+- PCIe Link State Power Management before remediation: `Maximum power savings` on AC and DC
+- `nvidia-smi` showed the GPU sitting at roughly `81 C` and `P0` on the desktop
 
-That combination strongly suggests this is not a simple "wrong driver version" issue. The machine is already using the legacy NVIDIA branch expected for the GT 330M. The practical Windows trigger is the GPU/PCIe/display path timing out and being reset by WDDM TDR. On this model, that is commonly aggravated by power-state transitions and by the age-related fragility of the discrete GPU/logic board.
+The working assumption is that the failure is driven by display and power-state transitions on an aging discrete GPU path, not just by the driver version alone.
 
-## What this fix changes
+## What The Fix Changes
 
-`Apply-GT330M-StabilityFix.ps1` makes only reversible, low-risk changes:
+`Apply-GT330M-StabilityFix.ps1` makes reversible changes that reduce the chance of a TDR-triggered reset:
 
-- Backs up the current graphics-driver registry branch and active power scheme
-- Switches the system to `High performance`
+- Backs up the current graphics-driver registry state and active power scheme
+- Switches to the `High performance` plan
 - Disables PCIe Link State Power Management on AC and battery
-- Disables remaining suspend/resume triggers that still hit the failing display path:
-  - display idle timeout
-  - hibernation / fast startup
-  - wake timers
-- Preserves the existing lid-close and hardware button actions so normal sleep behavior still works
-- Sets more forgiving TDR values for slow wake/display recovery on the GT 330M:
+- Disables display idle, hibernation, hybrid sleep, and wake-timer triggers that can expose the failing path
+- Preserves lid-close and hardware button behavior
+- Sets more forgiving TDR thresholds:
   - `TdrDelay = 20`
   - `TdrDdiDelay = 30`
   - `TdrLimitTime = 600`
   - `TdrLimitCount = 20`
-- Disables DWM multiplane overlay testing by setting `OverlayTestMode = 5`
-- Configures full local dumps for `dwm.exe` and `explorer.exe`
-- Disables unnecessary NVIDIA components that commonly hook desktop composition on legacy systems:
-  - `NVIDIA Display Driver Service`
-  - `NVIDIA Stereoscopic 3D Driver Service`
-  - `NVIDIA GeForce Experience Service`
-  - `NVIDIA Network Service`
-  - `NVIDIA Streamer Service`
-  - `NVIDIA Streamer Network Service`
-  - `NvBackend`, `nvtray`, `nvxdsync`, and related helper processes
-- Forces NVIDIA Stereo3D state off in the registry
-- Quarantines the `3D Vision` user-mode DLLs that were still loading into `dwm.exe`
-- Disables transparency and taskbar/window animations for the current user to cut compositor load on the desktop
+- Sets `OverlayTestMode = 5`
+- Configures local dumps for `dwm.exe` and `explorer.exe`
+- Disables unnecessary NVIDIA services and helper processes
+- Forces NVIDIA Stereo3D state off
+- Quarantines legacy 3D Vision user-mode DLLs
+- Disables transparency and window animation effects for the current user
 
-The script does **not** disable TDR completely, because that can turn recoverable hangs into full system freezes.
+The script does not disable TDR entirely, because that can turn recoverable hangs into hard freezes.
 
-## Why this is the right first fix
+## Repository Contents
 
-- It addresses the concrete triggers found during inspection: PCIe/display power transitions, the NVIDIA desktop helper chain, and excessive idle thermal load.
-- It reduces false-positive or borderline TDR trips without masking the GPU forever.
-- It is safe to apply over RDP and easy to roll back.
-
-## Remaining reality
-
-If local-console testing still produces `4101`, `141`, or full reboots after this fix, the remaining root cause is very likely the GT 330M hardware path itself, not an untried registry tweak. In that case the durable options are:
-
-- Keep using the machine with reduced local 3D load and this safer power profile
-- Move back to a supported Windows 10 build if this install is actually Windows 11-era (`22000`) on an unsupported GPU stack
-- Replace/retire the logic board or avoid local use of the discrete GPU entirely
-
-## BIOS Preboot Fix
-
-This machine is currently booting Windows in legacy BIOS mode, not UEFI. That means the `rEFInd` / EFI-shell `mm` method from the archived LaptopVideo2Go thread does not apply directly to this install.
-
-For this specific machine state, the equivalent fix is a BIOS-side GRUB chainloader that runs the original four `setpci` writes before handing control to Windows Boot Manager:
-
-- `setpci -s "00:01.0" 3e.b=8`
-- `setpci -s "01:00.0" 04.b=7`
-- `setpci -s "00:00.0" 50.W=2`
-- `setpci -s "00:00.0" 54.B=3`
-
-`Install-GT330M-BiosPrebootFix.ps1` downloads a BIOS-capable `grub4dos` build, places `grldr` and a generated `menu.lst` on `C:\`, creates a dedicated `bootmgr` entry called `Windows 11 (GT330M preboot fix)`, and sets that entry as the default while keeping the standard Windows entry as fallback in the boot menu.
-
-`Remove-GT330M-BiosPrebootFix.ps1` removes that boot entry and restores the previous default boot settings and any overwritten root files.
-
-## Scripts
-
+- `Install-GT330M-StabilityFix.ps1`
 - `scripts/Apply-GT330M-StabilityFix.ps1`
 - `scripts/Restore-GT330M-StabilityFix.ps1`
 - `scripts/Collect-GT330M-Evidence.ps1`
 - `scripts/Install-BootCamp5033-AppleComponents.ps1`
 - `scripts/Remove-BootCamp5033-AppleComponents.ps1`
-- `scripts/Install-GT330M-BiosPrebootFix.ps1`
-- `scripts/Remove-GT330M-BiosPrebootFix.ps1`
+- `scripts/Run-Apply-GT330M-StabilityFix.cmd`
+- `scripts/Run-Restore-GT330M-StabilityFix.cmd`
+- `docs/model-compatibility-analysis.md`
+
+## Similar Model Feasibility
+
+Static analysis suggests the current fix is most likely to transfer to:
+
+- `MacBookPro6,1` (17-inch, Mid 2010): strongest candidate; same `Intel HD + GeForce GT 330M` automatic-switching design as `MacBookPro6,2`
+
+Lower-confidence but still plausible if the symptom is the same `nvlddmkm` / TDR failure on the discrete NVIDIA path:
+
+- `MacBookPro5,3` (15-inch, Mid 2009 higher trims): `9400M + 9600M GT`
+- `MacBookPro5,2` (17-inch, Early/Mid 2009): `9400M + 9600M GT`
+- `MacBookPro5,1` (15-inch, Late 2008 / Early 2009 refresh): `9400M + 9600M GT`
+
+Out of scope:
+
+- integrated-only 13-inch models such as `MacBookPro5,5` and `MacBookPro7,1`
+- 2011 switching models such as `MacBookPro8,2` and `MacBookPro8,3`, which use AMD discrete GPUs rather than NVIDIA
+
+See `docs/model-compatibility-analysis.md` for the full rationale and source-backed notes.
+
+## Requirements
+
+- Windows with PowerShell
+- Administrative privileges for the apply and restore scripts
+- Boot Camp drivers already installed on the target machine
 
 ## Usage
 
-Apply:
+Recommended install: copy this one-liner into PowerShell and approve the UAC prompt:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $tmp = Join-Path $env:TEMP 'Install-GT330M-StabilityFix.ps1'; try { Invoke-WebRequest 'https://raw.githubusercontent.com/Syferus/Macbook-6-2-GeForce-GT-330M-Driver-Fix/main/Install-GT330M-StabilityFix.ps1' -OutFile $tmp; & $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue } }"
+```
+
+What it does:
+
+- Downloads the latest installer script from `main`
+- Prompts for elevation if needed
+- Downloads a temporary ZIP of this repository
+- Runs `scripts\Apply-GT330M-StabilityFix.ps1`
+- Cleans up the temporary files when finished
+
+Manual apply:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Apply-GT330M-StabilityFix.ps1
+.\scripts\Apply-GT330M-StabilityFix.ps1
 ```
 
-Or run `scripts\\Run-Apply-GT330M-StabilityFix.cmd` and accept the UAC prompt.
+You can also use `scripts\Run-Apply-GT330M-StabilityFix.cmd` to launch it with a UAC prompt.
 
-Restore:
+Restore the previous state:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Restore-GT330M-StabilityFix.ps1
+.\scripts\Restore-GT330M-StabilityFix.ps1
 ```
 
-Or run `scripts\\Run-Restore-GT330M-StabilityFix.cmd` and accept the UAC prompt.
+You can also use `scripts\Run-Restore-GT330M-StabilityFix.cmd`.
 
 Collect evidence after a repro:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Collect-GT330M-Evidence.ps1
+.\scripts\Collect-GT330M-Evidence.ps1
 ```
 
 Install the Apple Boot Camp 5.0.5033 runtime update:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Install-BootCamp5033-AppleComponents.ps1
+.\scripts\Install-BootCamp5033-AppleComponents.ps1
 ```
 
 On `MacBookPro6,2`, that script is now blocked by default unless you pass `-ForceLegacyAppleDriverUpgrade`, because the package upgrades Apple HID/Bluetooth/support drivers and has been linked to `0x10d` boot crashes on this machine.
@@ -131,19 +136,23 @@ Roll back the Boot Camp 5.0.5033 Apple component update:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Remove-BootCamp5033-AppleComponents.ps1
+.\scripts\Remove-BootCamp5033-AppleComponents.ps1
 ```
 
-Install the BIOS preboot fix:
+After applying the fix:
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Install-GT330M-BiosPrebootFix.ps1
-```
+- Reboot before evaluating local-display stability.
+- If the issue still reproduces, the likely remaining cause is the GT 330M hardware path itself.
+- Use the restore script to roll the machine back to its prior configuration.
 
-Remove the BIOS preboot fix:
+## Attribution
 
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\scripts\\Remove-GT330M-BiosPrebootFix.ps1
-```
+This repository's scripts and documentation are maintained by [rwflan](https://github.com/rwflan).
+
+Hardware and model-compatibility notes in this repo are based on public technical references from Apple Support and EveryMac. The detailed source list is in `docs/model-compatibility-analysis.md`.
+
+Apple, Boot Camp, MacBook Pro, Microsoft Windows, NVIDIA, and GeForce are the property of their respective owners. This repository is an independent community project and is not affiliated with or endorsed by Apple, Microsoft, or NVIDIA. Any third-party software downloaded or referenced by these scripts remains subject to its original license and distribution terms.
+
+## License
+
+This repository is available under the MIT License. See `LICENSE`.
