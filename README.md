@@ -137,7 +137,7 @@ After applying the fix:
 
 ## Attribution
 
-This repository's scripts and documentation are maintained by [Syferus](https://github.com/Syferus).
+This repository's scripts and documentation are maintained by [rwflan](https://github.com/rwflan).
 
 Hardware and model-compatibility notes in this repo are based on public technical references from Apple Support and EveryMac. The detailed source list is in `docs/model-compatibility-analysis.md`.
 
