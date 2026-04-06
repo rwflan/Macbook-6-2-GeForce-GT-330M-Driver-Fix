@@ -139,6 +139,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 .\scripts\Remove-BootCamp5033-AppleComponents.ps1
 ```
 
+That rollback now temporarily disables the Apple Bluetooth device while downgrading the Boot Camp driver packages so `AppleBtBc.sys` can be replaced cleanly before the next reboot.
+
 After applying the fix:
 
 - Reboot before evaluating local-display stability.
