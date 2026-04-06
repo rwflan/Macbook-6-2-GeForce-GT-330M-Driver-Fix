@@ -53,6 +53,7 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 - `scripts/Collect-GT330M-Evidence.ps1`
 - `scripts/Install-BootCamp5033-AppleComponents.ps1`
 - `scripts/Remove-BootCamp5033-AppleComponents.ps1`
+- `scripts/Restore-BootCampInputSupport.ps1`
 - `scripts/Run-Apply-GT330M-StabilityFix.cmd`
 - `scripts/Run-Restore-GT330M-StabilityFix.cmd`
 - `docs/model-compatibility-analysis.md`
@@ -140,6 +141,16 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 That rollback now temporarily disables the Apple Bluetooth device while downgrading the Boot Camp driver packages so `AppleBtBc.sys` can be replaced cleanly before the next reboot.
+It also restores the safe Boot Camp 5 keyboard/runtime files afterward so the function row and keyboard backlight do not get stranded on the older Boot Camp 4 stack.
+
+If the machine is already rolled back and only the Apple input support needs repair:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\scripts\Restore-BootCampInputSupport.ps1
+```
+
+If that script reports a queued replacement for `KeyMagic.sys` or another locked file, reboot once before judging whether the function row, keyboard backlight, and Boot Camp hotkeys are fully restored.
 
 After applying the fix:
 

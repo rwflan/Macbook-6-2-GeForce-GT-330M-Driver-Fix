@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [string]$BackupPath
+    [string]$BackupPath,
+    [switch]$SkipInputSupportRestore
 )
 
 Set-StrictMode -Version Latest
@@ -28,6 +29,7 @@ $driverRestoreTargets = @{
     "KeyMagic.sys" = "C:\Windows\System32\drivers\KeyMagic.sys"
     "MacHalDriver.sys" = "C:\Windows\System32\drivers\MacHalDriver.sys"
 }
+$inputRepairScriptPath = Join-Path $PSScriptRoot "Restore-BootCampInputSupport.ps1"
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -373,6 +375,13 @@ if ($PSCmdlet.ShouldProcess("Plug and Play", "rescan devices")) {
 
 if ($appleBluetoothDeviceInstanceIds.Count -gt 0) {
     Set-AppleBluetoothDeviceState -InstanceIds $appleBluetoothDeviceInstanceIds -Action "enable"
+}
+
+if ((-not $SkipInputSupportRestore) -and (Test-Path -LiteralPath $inputRepairScriptPath) -and $PSCmdlet.ShouldProcess($inputRepairScriptPath, "restore the safe Boot Camp 5 keyboard/runtime files from the pre-rollback snapshot")) {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $inputRepairScriptPath -SourceBackupPath $currentBackupDir
+    if ($LASTEXITCODE -ne 0) {
+        throw "Restore-BootCampInputSupport.ps1 failed with exit code $LASTEXITCODE."
+    }
 }
 
 Write-Host "Rollback completed."
