@@ -33,7 +33,7 @@ if (-not (Test-Administrator)) {
     return
 }
 
-$repoSlug = "Syferus/Macbook-6-2-GeForce-GT-330M-Driver-Fix"
+$repoSlug = "rwflan/Macbook-6-2-GeForce-GT-330M-Driver-Fix"
 $tempRoot = Join-Path $env:TEMP ("gt330m-fix-" + [guid]::NewGuid().ToString("N"))
 $zipPath = Join-Path $tempRoot "repo.zip"
 $extractRoot = Join-Path $tempRoot "extracted"
