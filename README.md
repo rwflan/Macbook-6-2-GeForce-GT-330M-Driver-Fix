@@ -142,6 +142,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 That rollback now temporarily disables the Apple Bluetooth device while downgrading the Boot Camp driver packages so `AppleBtBc.sys` can be replaced cleanly before the next reboot.
 It also restores the safe Boot Camp 5 keyboard/runtime files afterward and reinstalls the signed Apple keyboard package so the function row and keyboard backlight do not get stranded on the older Boot Camp 4 stack.
+That repair path is intentionally keyboard-only: it does not reinstall the Boot Camp 5 Bluetooth package, Apple null-driver package, or the broader Apple support-driver set that was linked to the earlier `0x10d` boot crashes.
 
 If the machine is already rolled back and only the Apple input support needs repair:
 
@@ -151,6 +152,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 ```
 
 By default, that script uses `C:\Temp\BootCamp5.0.5033\BootCamp\Drivers\Apple\AppleKeyboardInstaller64.exe` and will rebuild that extract folder from `C:\Temp\BootCamp5.0.5033.zip` if needed. If your Boot Camp 5 package lives somewhere else, pass `-KeyboardInstallerPath`.
+On the validated `MacBookPro6,2` flow, that script restores the signed Apple keyboard package (`5.0.3.0`) while leaving the rolled-back Apple Bluetooth driver on its older package.
 
 If that script reports a queued replacement for another locked file, reboot once before judging whether the function row, keyboard backlight, and Boot Camp hotkeys are fully restored.
 
