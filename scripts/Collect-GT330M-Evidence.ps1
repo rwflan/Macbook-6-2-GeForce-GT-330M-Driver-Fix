@@ -116,6 +116,16 @@ foreach ($dir in $werDirs) {
         Select-Object Status, StartType, Name, DisplayName |
         Format-Table -AutoSize | Out-String).Trim()
     ""
+    "Apple keyboard device:"
+    ((Get-CimInstance Win32_PnPSignedDriver -ErrorAction SilentlyContinue |
+        Where-Object { ($_.DeviceName -eq 'Apple Keyboard') -or ($_.DeviceID -like 'USB\VID_05AC&PID_0237&MI_00*') } |
+        Select-Object DeviceName, DriverVersion, DriverProviderName, InfName, IsSigned, DeviceID) |
+        Format-List | Out-String).Trim()
+    ((Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+        Where-Object { $_.PNPDeviceID -like 'USB\VID_05AC&PID_0237&MI_00*' } |
+        Select-Object Name, Status, ConfigManagerErrorCode, PNPDeviceID) |
+        Format-List | Out-String).Trim()
+    ""
     "nvidia-smi:"
     (& 'C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe' -q 2>&1 | Out-String).Trim()
 ) | Set-Content -LiteralPath $machineState
