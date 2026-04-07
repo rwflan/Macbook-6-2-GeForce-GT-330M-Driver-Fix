@@ -53,9 +53,7 @@ The script does not disable TDR entirely, because that can turn recoverable hang
 - `scripts/Collect-GT330M-Evidence.ps1`
 - `scripts/Install-BootCamp5033-AppleComponents.ps1`
 - `scripts/Remove-BootCamp5033-AppleComponents.ps1`
-- `scripts/Apply-WakeResumeUxFix.ps1`
 - `scripts/Restore-BootCampInputSupport.ps1`
-- `scripts/Restore-WakeResumeUxFix.ps1`
 - `scripts/Run-Apply-GT330M-StabilityFix.cmd`
 - `scripts/Run-Restore-GT330M-StabilityFix.cmd`
 - `docs/model-compatibility-analysis.md`
@@ -157,22 +155,6 @@ By default, that script uses `C:\Temp\BootCamp5.0.5033\BootCamp\Drivers\Apple\Ap
 On the validated `MacBookPro6,2` flow, that script restores the signed Apple keyboard package (`5.0.3.0`) while leaving the rolled-back Apple Bluetooth driver on its older package.
 
 If that script reports a queued replacement for another locked file, reboot once before judging whether the function row, keyboard backlight, and Boot Camp hotkeys are fully restored.
-
-If sleep/resume is stable but lid-open wake lands on a black screen until you press a key, you can make Windows skip the lock screen and go straight to the sign-in screen:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\Apply-WakeResumeUxFix.ps1
-```
-
-That tweak only changes Windows sign-in UX policies (`NoLockScreen` and `DisableAcrylicBackgroundOnLogon`). It does not touch the GT 330M stability settings or the Apple driver stack.
-
-To undo it:
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\scripts\Restore-WakeResumeUxFix.ps1
-```
 
 After applying the fix:
 
