@@ -6,6 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent $PSScriptRoot
 $captureDir = Join-Path (Join-Path $baseDir "logs") ("capture-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+$shellProcessPattern = 'dwm.exe|explorer.exe|SearchHost.exe|SearchApp.exe|ShellExperienceHost.exe|StartMenuExperienceHost.exe|LiveKernelEvent|nvlddmkm'
 
 New-Item -ItemType Directory -Path $captureDir -Force | Out-Null
 
@@ -22,7 +23,7 @@ Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddDays(-
 
 Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddDays(-2)} |
     Where-Object { $_.ProviderName -in @('Application Error','Windows Error Reporting') } |
-    Where-Object { $_.Message -match 'dwm.exe|explorer.exe|LiveKernelEvent|nvlddmkm' } |
+    Where-Object { $_.Message -match $shellProcessPattern } |
     Select-Object TimeCreated, Id, ProviderName, Message |
     Format-List | Out-String -Width 4096 | Set-Content -LiteralPath $appEvents
 
@@ -47,7 +48,15 @@ foreach ($file in $watchdogFiles) {
 }
 
 $werDirs = @(Get-ChildItem 'C:\ProgramData\Microsoft\Windows\WER\ReportArchive' -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -like 'Kernel_141*' -or $_.Name -like 'AppCrash_dwm.exe*' -or $_.Name -like 'AppCrash_explorer.exe*' } |
+    Where-Object {
+        $_.Name -like 'Kernel_141*' -or
+        $_.Name -like 'AppCrash_dwm.exe*' -or
+        $_.Name -like 'AppCrash_explorer.exe*' -or
+        $_.Name -like 'AppCrash_SearchHost.exe*' -or
+        $_.Name -like 'AppCrash_SearchApp.exe*' -or
+        $_.Name -like 'AppCrash_ShellExperienceHost.exe*' -or
+        $_.Name -like 'AppCrash_StartMenuExperienceHost.exe*'
+    } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 6)
 
@@ -69,6 +78,13 @@ foreach ($dir in $werDirs) {
     (Get-CimInstance Win32_Process |
         Where-Object { $_.Name -in 'nvvsvc.exe','nvxdsync.exe','nvtray.exe','NvBackend.exe','nvsmartmaxapp.exe','nvsmartmaxapp64.exe' } |
         Select-Object Name, ProcessId, ParentProcessId, CommandLine |
+        Format-List | Out-String).Trim()
+    ""
+    "Relevant shell/search processes:"
+    (Get-CimInstance Win32_Process |
+        Where-Object { $_.Name -in 'dwm.exe','explorer.exe','SearchHost.exe','SearchApp.exe','ShellExperienceHost.exe','StartMenuExperienceHost.exe' } |
+        Select-Object Name, ProcessId, ParentProcessId, CommandLine |
+        Sort-Object Name, ProcessId |
         Format-List | Out-String).Trim()
     ""
     "Relevant services:"
@@ -101,6 +117,12 @@ foreach ($dir in $werDirs) {
         Format-List | Out-String).Trim()
     ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -ErrorAction SilentlyContinue |
         Select-Object TaskbarAnimations) |
+        Format-List | Out-String).Trim()
+    ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' -ErrorAction SilentlyContinue |
+        Select-Object SearchboxTaskbarMode) |
+        Format-List | Out-String).Trim()
+    ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings' -ErrorAction SilentlyContinue |
+        Select-Object IsDynamicSearchBoxEnabled) |
         Format-List | Out-String).Trim()
     ((Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -ErrorAction SilentlyContinue |
         Select-Object MinAnimate) |

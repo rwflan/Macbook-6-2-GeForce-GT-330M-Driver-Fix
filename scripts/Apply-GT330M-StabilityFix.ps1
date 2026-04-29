@@ -15,6 +15,8 @@ $dwmKey = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
 $sessionPowerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
 $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+$searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+$searchSettingsKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
 $windowMetricsKey = "HKCU:\Control Panel\Desktop\WindowMetrics"
 $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 $werLocalDumpsKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
@@ -41,6 +43,14 @@ $nvidiaProcessNames = @(
     "NvBackend",
     "nvsmartmaxapp",
     "nvsmartmaxapp64"
+)
+$werDumpProcessNames = @(
+    "dwm.exe",
+    "explorer.exe",
+    "SearchHost.exe",
+    "SearchApp.exe",
+    "ShellExperienceHost.exe",
+    "StartMenuExperienceHost.exe"
 )
 $powerSettings = @(
     @{ Name = "PcieAspm"; Subgroup = "SUB_PCIEXPRESS"; Setting = "ASPM" },
@@ -119,6 +129,8 @@ function Save-CurrentState {
     $userRegistryTargets = @(
         @{ Bucket = "Personalize"; Path = $personalizeKey; Names = @("EnableTransparency") },
         @{ Bucket = "ExplorerAdvanced"; Path = $explorerAdvancedKey; Names = @("TaskbarAnimations") },
+        @{ Bucket = "Search"; Path = $searchKey; Names = @("SearchboxTaskbarMode") },
+        @{ Bucket = "SearchSettings"; Path = $searchSettingsKey; Names = @("IsDynamicSearchBoxEnabled") },
         @{ Bucket = "WindowMetrics"; Path = $windowMetricsKey; Names = @("MinAnimate") }
     )
 
@@ -328,6 +340,11 @@ if ($PSCmdlet.ShouldProcess("current user desktop effects", "disable transparenc
     Set-RegistryString -Path $windowMetricsKey -Name "MinAnimate" -Value "0"
 }
 
+if ($PSCmdlet.ShouldProcess("current user taskbar search surface", "reduce search-box compositing and dynamic highlights")) {
+    Set-RegistryDword -Path $searchKey -Name "SearchboxTaskbarMode" -Value 1
+    Set-RegistryDword -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -Value 0
+}
+
 if ($PSCmdlet.ShouldProcess($stereo3DKey, "force Stereo3D state off")) {
     Set-RegistryDword -Path $stereo3DKey -Name "DrsEnable" -Value 0
     Set-RegistryDword -Path $stereo3DKey -Name "StereoDefaultOn" -Value 0
@@ -337,8 +354,8 @@ if ($PSCmdlet.ShouldProcess($stereo3DKey, "force Stereo3D state off")) {
     Set-RegistryDword -Path $stereo3DKey -Name "EnableNvMsStereoSync" -Value 0
 }
 
-if ($PSCmdlet.ShouldProcess($werLocalDumpsKey, "configure full local dumps for DWM and Explorer")) {
-    foreach ($processName in "dwm.exe", "explorer.exe") {
+if ($PSCmdlet.ShouldProcess($werLocalDumpsKey, "configure full local dumps for taskbar and search shell processes")) {
+    foreach ($processName in $werDumpProcessNames) {
         $dumpKey = Join-Path $werLocalDumpsKey $processName
         Set-RegistryExpandString -Path $dumpKey -Name "DumpFolder" -Value $localDumpsDir
         Set-RegistryDword -Path $dumpKey -Name "DumpCount" -Value 10

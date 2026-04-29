@@ -12,11 +12,21 @@ $dwmKey = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
 $sessionPowerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
 $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+$searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
+$searchSettingsKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
 $windowMetricsKey = "HKCU:\Control Panel\Desktop\WindowMetrics"
 $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 $werLocalDumpsKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
 $stereo3DKey = "HKLM:\SOFTWARE\WOW6432Node\NVIDIA Corporation\Global\Stereo3D"
 $visionDir = "C:\Program Files (x86)\NVIDIA Corporation\3D Vision"
+$werDumpProcessNames = @(
+    "dwm.exe",
+    "explorer.exe",
+    "SearchHost.exe",
+    "SearchApp.exe",
+    "ShellExperienceHost.exe",
+    "StartMenuExperienceHost.exe"
+)
 $powerSettings = @(
     @{ Name = "PcieAspm"; Subgroup = "SUB_PCIEXPRESS"; Setting = "ASPM" },
     @{ Name = "VideoIdle"; Subgroup = "SUB_VIDEO"; Setting = "VIDEOIDLE" },
@@ -197,29 +207,102 @@ if ($null -ne $state.PSObject.Properties["UserRegistryValues"]) {
 }
 
 if ($savedUserRegistryValues.ContainsKey("Personalize")) {
-    $value = $savedUserRegistryValues["Personalize"].EnableTransparency
-    if ($null -ne $value) {
+    $property = $savedUserRegistryValues["Personalize"].PSObject.Properties["EnableTransparency"]
+    if ($null -ne $property) {
+        $value = $property.Value
         if ($PSCmdlet.ShouldProcess($personalizeKey, "restore EnableTransparency")) {
             New-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
         }
     }
+    elseif (Get-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($personalizeKey, "remove EnableTransparency")) {
+            Remove-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($personalizeKey, "remove EnableTransparency")) {
+        Remove-ItemProperty -Path $personalizeKey -Name "EnableTransparency" -ErrorAction Stop
+    }
 }
 
 if ($savedUserRegistryValues.ContainsKey("ExplorerAdvanced")) {
-    $value = $savedUserRegistryValues["ExplorerAdvanced"].TaskbarAnimations
-    if ($null -ne $value) {
+    $property = $savedUserRegistryValues["ExplorerAdvanced"].PSObject.Properties["TaskbarAnimations"]
+    if ($null -ne $property) {
+        $value = $property.Value
         if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "restore TaskbarAnimations")) {
             New-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
         }
     }
+    elseif (Get-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "remove TaskbarAnimations")) {
+            Remove-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "remove TaskbarAnimations")) {
+        Remove-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -ErrorAction Stop
+    }
+}
+
+if ($savedUserRegistryValues.ContainsKey("Search")) {
+    $property = $savedUserRegistryValues["Search"].PSObject.Properties["SearchboxTaskbarMode"]
+    if ($null -ne $property) {
+        $value = $property.Value
+        if ($PSCmdlet.ShouldProcess($searchKey, "restore SearchboxTaskbarMode")) {
+            New-ItemProperty -Path $searchKey -Name "SearchboxTaskbarMode" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $searchKey -Name "SearchboxTaskbarMode" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($searchKey, "remove SearchboxTaskbarMode")) {
+            Remove-ItemProperty -Path $searchKey -Name "SearchboxTaskbarMode" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $searchKey -Name "SearchboxTaskbarMode" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($searchKey, "remove SearchboxTaskbarMode")) {
+        Remove-ItemProperty -Path $searchKey -Name "SearchboxTaskbarMode" -ErrorAction Stop
+    }
+}
+
+if ($savedUserRegistryValues.ContainsKey("SearchSettings")) {
+    $property = $savedUserRegistryValues["SearchSettings"].PSObject.Properties["IsDynamicSearchBoxEnabled"]
+    if ($null -ne $property) {
+        $value = $property.Value
+        if ($PSCmdlet.ShouldProcess($searchSettingsKey, "restore IsDynamicSearchBoxEnabled")) {
+            New-ItemProperty -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($searchSettingsKey, "remove IsDynamicSearchBoxEnabled")) {
+            Remove-ItemProperty -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($searchSettingsKey, "remove IsDynamicSearchBoxEnabled")) {
+        Remove-ItemProperty -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -ErrorAction Stop
+    }
 }
 
 if ($savedUserRegistryValues.ContainsKey("WindowMetrics")) {
-    $value = $savedUserRegistryValues["WindowMetrics"].MinAnimate
-    if ($null -ne $value) {
+    $property = $savedUserRegistryValues["WindowMetrics"].PSObject.Properties["MinAnimate"]
+    if ($null -ne $property) {
+        $value = $property.Value
         if ($PSCmdlet.ShouldProcess($windowMetricsKey, "restore MinAnimate")) {
             Set-RegistryString -Path $windowMetricsKey -Name "MinAnimate" -Value ([string]$value)
         }
+    }
+    elseif (Get-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($windowMetricsKey, "remove MinAnimate")) {
+            Remove-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($windowMetricsKey, "remove MinAnimate")) {
+        Remove-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction Stop
     }
 }
 
@@ -285,7 +368,7 @@ if ($null -ne $state.PSObject.Properties["ServiceStartModes"]) {
     }
 }
 
-foreach ($processName in "dwm.exe", "explorer.exe") {
+foreach ($processName in $werDumpProcessNames) {
     $dumpKey = Join-Path $werLocalDumpsKey $processName
     if (Test-Path -Path $dumpKey) {
         if ($PSCmdlet.ShouldProcess($dumpKey, "remove local dump configuration")) {
