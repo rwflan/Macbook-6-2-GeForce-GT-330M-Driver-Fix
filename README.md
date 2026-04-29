@@ -37,7 +37,8 @@ The working assumption is that the failure is driven by display and power-state 
   - `TdrLimitTime = 600`
   - `TdrLimitCount = 20`
 - Sets `OverlayTestMode = 5`
-- Configures local dumps for `dwm.exe` and `explorer.exe`
+- Keeps taskbar search available, but collapses it to the smaller icon-only surface and disables dynamic search-box highlights
+- Configures local dumps for `dwm.exe`, `explorer.exe`, and the search/taskbar shell hosts
 - Disables unnecessary NVIDIA services and helper processes
 - Forces NVIDIA Stereo3D state off
 - Quarantines legacy 3D Vision user-mode DLLs
@@ -159,6 +160,7 @@ If that script reports a queued replacement for another locked file, reboot once
 After applying the fix:
 
 - Reboot before evaluating local-display stability.
+- Taskbar search stays available, but the wide animated search box is intentionally reduced to the search icon to avoid stressing the same shell/compositor path.
 - If the issue still reproduces, the likely remaining cause is the GT 330M hardware path itself.
 - Use the restore script to roll the machine back to its prior configuration.
 
