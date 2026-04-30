@@ -14,6 +14,7 @@ $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Person
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 $searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
 $searchSettingsKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
+$widgetsPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Dsh"
 $windowMetricsKey = "HKCU:\Control Panel\Desktop\WindowMetrics"
 $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 $werLocalDumpsKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
@@ -246,6 +247,26 @@ elseif (Get-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarAnimations" -E
     }
 }
 
+if ($savedUserRegistryValues.ContainsKey("ExplorerAdvanced")) {
+    $property = $savedUserRegistryValues["ExplorerAdvanced"].PSObject.Properties["TaskbarDa"]
+    if ($null -ne $property) {
+        $value = $property.Value
+        if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "restore TaskbarDa")) {
+            New-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarDa" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarDa" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "remove TaskbarDa")) {
+            Remove-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarDa" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarDa" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($explorerAdvancedKey, "remove TaskbarDa")) {
+        Remove-ItemProperty -Path $explorerAdvancedKey -Name "TaskbarDa" -ErrorAction Stop
+    }
+}
+
 if ($savedUserRegistryValues.ContainsKey("Search")) {
     $property = $savedUserRegistryValues["Search"].PSObject.Properties["SearchboxTaskbarMode"]
     if ($null -ne $property) {
@@ -303,6 +324,33 @@ if ($savedUserRegistryValues.ContainsKey("WindowMetrics")) {
 elseif (Get-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction SilentlyContinue) {
     if ($PSCmdlet.ShouldProcess($windowMetricsKey, "remove MinAnimate")) {
         Remove-ItemProperty -Path $windowMetricsKey -Name "MinAnimate" -ErrorAction Stop
+    }
+}
+
+$savedPolicyRegistryValues = @{}
+if ($null -ne $state.PSObject.Properties["PolicyRegistryValues"]) {
+    foreach ($property in $state.PolicyRegistryValues.PSObject.Properties) {
+        $savedPolicyRegistryValues[$property.Name] = $property.Value
+    }
+}
+
+if ($savedPolicyRegistryValues.ContainsKey("Dsh")) {
+    $property = $savedPolicyRegistryValues["Dsh"].PSObject.Properties["AllowNewsAndInterests"]
+    if ($null -ne $property) {
+        $value = $property.Value
+        if ($PSCmdlet.ShouldProcess($widgetsPolicyKey, "restore AllowNewsAndInterests")) {
+            New-ItemProperty -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -PropertyType DWord -Value ([int]$value) -Force | Out-Null
+        }
+    }
+    elseif (Get-ItemProperty -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -ErrorAction SilentlyContinue) {
+        if ($PSCmdlet.ShouldProcess($widgetsPolicyKey, "remove AllowNewsAndInterests")) {
+            Remove-ItemProperty -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -ErrorAction Stop
+        }
+    }
+}
+elseif (Get-ItemProperty -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -ErrorAction SilentlyContinue) {
+    if ($PSCmdlet.ShouldProcess($widgetsPolicyKey, "remove AllowNewsAndInterests")) {
+        Remove-ItemProperty -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -ErrorAction Stop
     }
 }
 

@@ -38,6 +38,7 @@ The working assumption is that the failure is driven by display and power-state 
   - `TdrLimitCount = 20`
 - Sets `OverlayTestMode = 5`
 - Keeps taskbar search available, but collapses it to the smaller icon-only surface and disables dynamic search-box highlights
+- Disables the Widgets/news surface and stops the current-session `Widgets.exe` host to reduce idle GPU pressure on build `22000`
 - Configures local dumps for `dwm.exe`, `explorer.exe`, and the search/taskbar shell hosts
 - Disables unnecessary NVIDIA services and helper processes
 - Forces NVIDIA Stereo3D state off

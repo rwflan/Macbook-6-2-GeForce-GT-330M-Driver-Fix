@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $baseDir = Split-Path -Parent $PSScriptRoot
 $captureDir = Join-Path (Join-Path $baseDir "logs") ("capture-" + (Get-Date -Format "yyyyMMdd-HHmmss"))
-$shellProcessPattern = 'dwm.exe|explorer.exe|SearchHost.exe|SearchApp.exe|ShellExperienceHost.exe|StartMenuExperienceHost.exe|LiveKernelEvent|nvlddmkm'
+$shellProcessPattern = 'dwm.exe|explorer.exe|SearchHost.exe|SearchApp.exe|ShellExperienceHost.exe|StartMenuExperienceHost.exe|Widgets.exe|WinStore.App.exe|LiveKernelEvent|nvlddmkm'
 
 New-Item -ItemType Directory -Path $captureDir -Force | Out-Null
 
@@ -55,7 +55,9 @@ $werDirs = @(Get-ChildItem 'C:\ProgramData\Microsoft\Windows\WER\ReportArchive' 
         $_.Name -like 'AppCrash_SearchHost.exe*' -or
         $_.Name -like 'AppCrash_SearchApp.exe*' -or
         $_.Name -like 'AppCrash_ShellExperienceHost.exe*' -or
-        $_.Name -like 'AppCrash_StartMenuExperienceHost.exe*'
+        $_.Name -like 'AppCrash_StartMenuExperienceHost.exe*' -or
+        $_.Name -like 'AppHang_Microsoft.Window*' -or
+        $_.Name -like 'AppHang_windows.immersiv*'
     } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 6)
@@ -82,7 +84,7 @@ foreach ($dir in $werDirs) {
     ""
     "Relevant shell/search processes:"
     (Get-CimInstance Win32_Process |
-        Where-Object { $_.Name -in 'dwm.exe','explorer.exe','SearchHost.exe','SearchApp.exe','ShellExperienceHost.exe','StartMenuExperienceHost.exe' } |
+        Where-Object { $_.Name -in 'dwm.exe','explorer.exe','SearchHost.exe','SearchApp.exe','ShellExperienceHost.exe','StartMenuExperienceHost.exe','Widgets.exe','WinStore.App.exe' } |
         Select-Object Name, ProcessId, ParentProcessId, CommandLine |
         Sort-Object Name, ProcessId |
         Format-List | Out-String).Trim()
@@ -116,7 +118,7 @@ foreach ($dir in $werDirs) {
         Select-Object EnableTransparency) |
         Format-List | Out-String).Trim()
     ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -ErrorAction SilentlyContinue |
-        Select-Object TaskbarAnimations) |
+        Select-Object TaskbarAnimations, TaskbarDa) |
         Format-List | Out-String).Trim()
     ((Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' -ErrorAction SilentlyContinue |
         Select-Object SearchboxTaskbarMode) |
@@ -126,6 +128,9 @@ foreach ($dir in $werDirs) {
         Format-List | Out-String).Trim()
     ((Get-ItemProperty 'HKCU:\Control Panel\Desktop\WindowMetrics' -ErrorAction SilentlyContinue |
         Select-Object MinAnimate) |
+        Format-List | Out-String).Trim()
+    ((Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Dsh' -ErrorAction SilentlyContinue |
+        Select-Object AllowNewsAndInterests) |
         Format-List | Out-String).Trim()
     ""
     "Input support files:"
