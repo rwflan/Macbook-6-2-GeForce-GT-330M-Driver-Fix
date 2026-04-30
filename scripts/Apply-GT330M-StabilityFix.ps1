@@ -17,6 +17,7 @@ $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Person
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 $searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
 $searchSettingsKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\SearchSettings"
+$widgetsPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Dsh"
 $windowMetricsKey = "HKCU:\Control Panel\Desktop\WindowMetrics"
 $runKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
 $werLocalDumpsKey = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps"
@@ -86,6 +87,7 @@ function Save-CurrentState {
         DwmRegistryValues = @{}
         SessionPowerValues = @{}
         UserRegistryValues = @{}
+        PolicyRegistryValues = @{}
         Stereo3DRegistryValues = @{}
         RunValues = @{}
         ServiceStartModes = @{}
@@ -128,7 +130,7 @@ function Save-CurrentState {
 
     $userRegistryTargets = @(
         @{ Bucket = "Personalize"; Path = $personalizeKey; Names = @("EnableTransparency") },
-        @{ Bucket = "ExplorerAdvanced"; Path = $explorerAdvancedKey; Names = @("TaskbarAnimations") },
+        @{ Bucket = "ExplorerAdvanced"; Path = $explorerAdvancedKey; Names = @("TaskbarAnimations", "TaskbarDa") },
         @{ Bucket = "Search"; Path = $searchKey; Names = @("SearchboxTaskbarMode") },
         @{ Bucket = "SearchSettings"; Path = $searchSettingsKey; Names = @("IsDynamicSearchBoxEnabled") },
         @{ Bucket = "WindowMetrics"; Path = $windowMetricsKey; Names = @("MinAnimate") }
@@ -142,6 +144,16 @@ function Save-CurrentState {
                 if ($null -ne $item.PSObject.Properties[$property]) {
                     $beforeState.UserRegistryValues[$target.Bucket][$property] = $item.$property
                 }
+            }
+        }
+    }
+
+    if (Test-Path $widgetsPolicyKey) {
+        $beforeState.PolicyRegistryValues["Dsh"] = @{}
+        $item = Get-ItemProperty -Path $widgetsPolicyKey
+        foreach ($property in "AllowNewsAndInterests") {
+            if ($null -ne $item.PSObject.Properties[$property]) {
+                $beforeState.PolicyRegistryValues["Dsh"][$property] = $item.$property
             }
         }
     }
@@ -345,6 +357,12 @@ if ($PSCmdlet.ShouldProcess("current user taskbar search surface", "reduce searc
     Set-RegistryDword -Path $searchSettingsKey -Name "IsDynamicSearchBoxEnabled" -Value 0
 }
 
+if ($PSCmdlet.ShouldProcess("widgets and news surfaces", "disable the taskbar Widgets entry point and stop the Widgets host")) {
+    Set-RegistryDword -Path $explorerAdvancedKey -Name "TaskbarDa" -Value 0
+    Set-RegistryDword -Path $widgetsPolicyKey -Name "AllowNewsAndInterests" -Value 0
+    Get-Process -Name "Widgets" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+}
+
 if ($PSCmdlet.ShouldProcess($stereo3DKey, "force Stereo3D state off")) {
     Set-RegistryDword -Path $stereo3DKey -Name "DrsEnable" -Value 0
     Set-RegistryDword -Path $stereo3DKey -Name "StereoDefaultOn" -Value 0
@@ -410,8 +428,13 @@ $afterState = [ordered]@{
     SessionPowerValues = Get-ItemProperty -Path $sessionPowerKey -ErrorAction SilentlyContinue | Select-Object HiberbootEnabled
     UserRegistryValues = [pscustomobject]@{
         Personalize = Get-ItemProperty -Path $personalizeKey -ErrorAction SilentlyContinue | Select-Object EnableTransparency
-        ExplorerAdvanced = Get-ItemProperty -Path $explorerAdvancedKey -ErrorAction SilentlyContinue | Select-Object TaskbarAnimations
+        ExplorerAdvanced = Get-ItemProperty -Path $explorerAdvancedKey -ErrorAction SilentlyContinue | Select-Object TaskbarAnimations, TaskbarDa
+        Search = Get-ItemProperty -Path $searchKey -ErrorAction SilentlyContinue | Select-Object SearchboxTaskbarMode
+        SearchSettings = Get-ItemProperty -Path $searchSettingsKey -ErrorAction SilentlyContinue | Select-Object IsDynamicSearchBoxEnabled
         WindowMetrics = Get-ItemProperty -Path $windowMetricsKey -ErrorAction SilentlyContinue | Select-Object MinAnimate
+    }
+    PolicyRegistryValues = [pscustomobject]@{
+        Dsh = Get-ItemProperty -Path $widgetsPolicyKey -ErrorAction SilentlyContinue | Select-Object AllowNewsAndInterests
     }
     Stereo3DRegistryValues = Get-ItemProperty -Path $stereo3DKey -ErrorAction SilentlyContinue | Select-Object DrsEnable, StereoDefaultOn, StereoDefaultONSet, StereoAdjustEnable, EnableWindowedMode, EnableNvMsStereoSync
     ServiceStartModes = foreach ($serviceName in $nvidiaServiceNames) {
