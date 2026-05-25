@@ -13,6 +13,9 @@ $graphicsKey = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 $graphicsRegPath = "HKLM\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 $dwmKey = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
 $sessionPowerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
+$logonBackgroundKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\Background"
+$windowsSystemPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+$personalizationPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
 $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 $searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
@@ -86,6 +89,7 @@ function Save-CurrentState {
         GraphicsRegistryValues = @{}
         DwmRegistryValues = @{}
         SessionPowerValues = @{}
+        LogonUiRegistryValues = @{}
         UserRegistryValues = @{}
         PolicyRegistryValues = @{}
         Stereo3DRegistryValues = @{}
@@ -128,6 +132,15 @@ function Save-CurrentState {
         }
     }
 
+    if (Test-Path $logonBackgroundKey) {
+        $item = Get-ItemProperty -Path $logonBackgroundKey
+        foreach ($property in "OEMBackground") {
+            if ($null -ne $item.PSObject.Properties[$property]) {
+                $beforeState.LogonUiRegistryValues[$property] = $item.$property
+            }
+        }
+    }
+
     $userRegistryTargets = @(
         @{ Bucket = "Personalize"; Path = $personalizeKey; Names = @("EnableTransparency") },
         @{ Bucket = "ExplorerAdvanced"; Path = $explorerAdvancedKey; Names = @("TaskbarAnimations", "TaskbarDa") },
@@ -148,12 +161,20 @@ function Save-CurrentState {
         }
     }
 
-    if (Test-Path $widgetsPolicyKey) {
-        $beforeState.PolicyRegistryValues["Dsh"] = @{}
-        $item = Get-ItemProperty -Path $widgetsPolicyKey
-        foreach ($property in "AllowNewsAndInterests") {
-            if ($null -ne $item.PSObject.Properties[$property]) {
-                $beforeState.PolicyRegistryValues["Dsh"][$property] = $item.$property
+    $policyRegistryTargets = @(
+        @{ Bucket = "WindowsSystem"; Path = $windowsSystemPolicyKey; Names = @("DisableAcrylicBackgroundOnLogon", "DisableLockScreenAppNotifications", "DisableLogonBackgroundImage", "EnableFirstLogonAnimation") },
+        @{ Bucket = "Personalization"; Path = $personalizationPolicyKey; Names = @("NoLockScreen", "NoLockScreenCamera", "NoLockScreenSlideshow") },
+        @{ Bucket = "Dsh"; Path = $widgetsPolicyKey; Names = @("AllowNewsAndInterests") }
+    )
+
+    foreach ($target in $policyRegistryTargets) {
+        $beforeState.PolicyRegistryValues[$target.Bucket] = @{}
+        if (Test-Path $target.Path) {
+            $item = Get-ItemProperty -Path $target.Path
+            foreach ($property in $target.Names) {
+                if ($null -ne $item.PSObject.Properties[$property]) {
+                    $beforeState.PolicyRegistryValues[$target.Bucket][$property] = $item.$property
+                }
             }
         }
     }
@@ -346,6 +367,17 @@ if ($PSCmdlet.ShouldProcess($sessionPowerKey, "disable fast startup and hibernat
     powercfg /HIBERNATE OFF | Out-Null
 }
 
+if ($PSCmdlet.ShouldProcess("lock and logon surfaces", "disable animated, blurred, and app-backed pre-login UI")) {
+    Set-RegistryDword -Path $logonBackgroundKey -Name "OEMBackground" -Value 0
+    Set-RegistryDword -Path $windowsSystemPolicyKey -Name "DisableAcrylicBackgroundOnLogon" -Value 1
+    Set-RegistryDword -Path $windowsSystemPolicyKey -Name "DisableLockScreenAppNotifications" -Value 1
+    Set-RegistryDword -Path $windowsSystemPolicyKey -Name "DisableLogonBackgroundImage" -Value 1
+    Set-RegistryDword -Path $windowsSystemPolicyKey -Name "EnableFirstLogonAnimation" -Value 0
+    Set-RegistryDword -Path $personalizationPolicyKey -Name "NoLockScreen" -Value 1
+    Set-RegistryDword -Path $personalizationPolicyKey -Name "NoLockScreenCamera" -Value 1
+    Set-RegistryDword -Path $personalizationPolicyKey -Name "NoLockScreenSlideshow" -Value 1
+}
+
 if ($PSCmdlet.ShouldProcess("current user desktop effects", "disable transparency and window animations")) {
     Set-RegistryDword -Path $personalizeKey -Name "EnableTransparency" -Value 0
     Set-RegistryDword -Path $explorerAdvancedKey -Name "TaskbarAnimations" -Value 0
@@ -426,6 +458,7 @@ $afterState = [ordered]@{
     GraphicsRegistryValues = Get-ItemProperty -Path $graphicsKey | Select-Object TdrDelay, TdrDdiDelay, TdrLimitTime, TdrLimitCount
     DwmRegistryValues = Get-ItemProperty -Path $dwmKey -ErrorAction SilentlyContinue | Select-Object OverlayTestMode
     SessionPowerValues = Get-ItemProperty -Path $sessionPowerKey -ErrorAction SilentlyContinue | Select-Object HiberbootEnabled
+    LogonUiRegistryValues = Get-ItemProperty -Path $logonBackgroundKey -ErrorAction SilentlyContinue | Select-Object OEMBackground
     UserRegistryValues = [pscustomobject]@{
         Personalize = Get-ItemProperty -Path $personalizeKey -ErrorAction SilentlyContinue | Select-Object EnableTransparency
         ExplorerAdvanced = Get-ItemProperty -Path $explorerAdvancedKey -ErrorAction SilentlyContinue | Select-Object TaskbarAnimations, TaskbarDa
@@ -434,6 +467,8 @@ $afterState = [ordered]@{
         WindowMetrics = Get-ItemProperty -Path $windowMetricsKey -ErrorAction SilentlyContinue | Select-Object MinAnimate
     }
     PolicyRegistryValues = [pscustomobject]@{
+        WindowsSystem = Get-ItemProperty -Path $windowsSystemPolicyKey -ErrorAction SilentlyContinue | Select-Object DisableAcrylicBackgroundOnLogon, DisableLockScreenAppNotifications, DisableLogonBackgroundImage, EnableFirstLogonAnimation
+        Personalization = Get-ItemProperty -Path $personalizationPolicyKey -ErrorAction SilentlyContinue | Select-Object NoLockScreen, NoLockScreenCamera, NoLockScreenSlideshow
         Dsh = Get-ItemProperty -Path $widgetsPolicyKey -ErrorAction SilentlyContinue | Select-Object AllowNewsAndInterests
     }
     Stereo3DRegistryValues = Get-ItemProperty -Path $stereo3DKey -ErrorAction SilentlyContinue | Select-Object DrsEnable, StereoDefaultOn, StereoDefaultONSet, StereoAdjustEnable, EnableWindowedMode, EnableNvMsStereoSync

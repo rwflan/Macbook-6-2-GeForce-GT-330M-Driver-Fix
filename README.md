@@ -37,6 +37,7 @@ The working assumption is that the failure is driven by display and power-state 
   - `TdrLimitTime = 600`
   - `TdrLimitCount = 20`
 - Sets `OverlayTestMode = 5`
+- Simplifies the pre-login lock/logon surface by disabling the blurred/animated logon background, lock-screen camera/slideshow, lock-screen app notifications, and first-logon animation
 - Keeps taskbar search available, but collapses it to the smaller icon-only surface and disables dynamic search-box highlights
 - Disables the Widgets/news surface and stops the current-session `Widgets.exe` host to reduce idle GPU pressure on build `22000`
 - Configures local dumps for `dwm.exe`, `explorer.exe`, and the search/taskbar shell hosts
@@ -161,6 +162,7 @@ If that script reports a queued replacement for another locked file, reboot once
 After applying the fix:
 
 - Reboot before evaluating local-display stability.
+- The lock screen is intentionally reduced to a simpler logon path so wake/resume does less compositor work before sign-in.
 - Taskbar search stays available, but the wide animated search box is intentionally reduced to the search icon to avoid stressing the same shell/compositor path.
 - If the issue still reproduces, the likely remaining cause is the GT 330M hardware path itself.
 - Use the restore script to roll the machine back to its prior configuration.

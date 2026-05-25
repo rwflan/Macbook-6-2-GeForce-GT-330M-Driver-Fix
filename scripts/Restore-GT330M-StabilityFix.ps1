@@ -10,6 +10,9 @@ $baseDir = Split-Path -Parent $PSScriptRoot
 $graphicsKey = "HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers"
 $dwmKey = "HKLM:\SOFTWARE\Microsoft\Windows\Dwm"
 $sessionPowerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power"
+$logonBackgroundKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\Background"
+$windowsSystemPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System"
+$personalizationPolicyKey = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization"
 $personalizeKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 $explorerAdvancedKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 $searchKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Search"
@@ -55,6 +58,38 @@ function Set-RegistryString {
         New-Item -Path $Path -Force | Out-Null
     }
     New-ItemProperty -Path $Path -Name $Name -PropertyType String -Value $Value -Force | Out-Null
+}
+
+function Restore-DwordRegistryValues {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [object]$SavedValues,
+        [Parameter(Mandatory = $true)]
+        [string[]]$Names
+    )
+
+    $saved = @{}
+    if ($null -ne $SavedValues) {
+        foreach ($property in $SavedValues.PSObject.Properties) {
+            $saved[$property.Name] = $property.Value
+        }
+    }
+
+    foreach ($name in $Names) {
+        if ($saved.ContainsKey($name)) {
+            if ($PSCmdlet.ShouldProcess($Path, "restore $name")) {
+                New-ItemProperty -Path $Path -Name $name -PropertyType DWord -Value ([int]$saved[$name]) -Force | Out-Null
+            }
+        }
+        elseif (Get-ItemProperty -Path $Path -Name $name -ErrorAction SilentlyContinue) {
+            if ($PSCmdlet.ShouldProcess($Path, "remove $name")) {
+                Remove-ItemProperty -Path $Path -Name $name -ErrorAction Stop
+            }
+        }
+    }
 }
 
 function Assert-Administrator {
@@ -200,6 +235,10 @@ if ($savedSessionPowerValues.ContainsKey("HiberbootEnabled")) {
     }
 }
 
+if ($null -ne $state.PSObject.Properties["LogonUiRegistryValues"]) {
+    Restore-DwordRegistryValues -Path $logonBackgroundKey -SavedValues $state.LogonUiRegistryValues -Names @("OEMBackground")
+}
+
 $savedUserRegistryValues = @{}
 if ($null -ne $state.PSObject.Properties["UserRegistryValues"]) {
     foreach ($property in $state.UserRegistryValues.PSObject.Properties) {
@@ -332,6 +371,14 @@ if ($null -ne $state.PSObject.Properties["PolicyRegistryValues"]) {
     foreach ($property in $state.PolicyRegistryValues.PSObject.Properties) {
         $savedPolicyRegistryValues[$property.Name] = $property.Value
     }
+}
+
+if ($savedPolicyRegistryValues.ContainsKey("WindowsSystem")) {
+    Restore-DwordRegistryValues -Path $windowsSystemPolicyKey -SavedValues $savedPolicyRegistryValues["WindowsSystem"] -Names @("DisableAcrylicBackgroundOnLogon", "DisableLockScreenAppNotifications", "DisableLogonBackgroundImage", "EnableFirstLogonAnimation")
+}
+
+if ($savedPolicyRegistryValues.ContainsKey("Personalization")) {
+    Restore-DwordRegistryValues -Path $personalizationPolicyKey -SavedValues $savedPolicyRegistryValues["Personalization"] -Names @("NoLockScreen", "NoLockScreenCamera", "NoLockScreenSlideshow")
 }
 
 if ($savedPolicyRegistryValues.ContainsKey("Dsh")) {

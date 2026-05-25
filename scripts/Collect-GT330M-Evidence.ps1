@@ -13,6 +13,7 @@ New-Item -ItemType Directory -Path $captureDir -Force | Out-Null
 $systemEvents = Join-Path $captureDir "system-events.txt"
 $appEvents = Join-Path $captureDir "application-events.txt"
 $bootTimeline = Join-Path $captureDir "boot-timeline.txt"
+$winlogonEvents = Join-Path $captureDir "winlogon-events.txt"
 $machineState = Join-Path $captureDir "machine-state.txt"
 $summaryFile = Join-Path $captureDir "summary.txt"
 
@@ -38,6 +39,11 @@ Get-WinEvent -FilterHashtable @{LogName='System'; StartTime=(Get-Date).AddDays(-
     Select-Object TimeCreated, Id, ProviderName, LevelDisplayName, Message |
     Sort-Object TimeCreated |
     Format-List | Out-String -Width 4096 | Set-Content -LiteralPath $bootTimeline
+
+Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Winlogon/Operational'; StartTime=(Get-Date).AddDays(-2)} -ErrorAction SilentlyContinue |
+    Select-Object TimeCreated, Id, ProviderName, LevelDisplayName, Message |
+    Sort-Object TimeCreated |
+    Format-List | Out-String -Width 4096 | Set-Content -LiteralPath $winlogonEvents
 
 $watchdogFiles = @(Get-ChildItem 'C:\Windows\LiveKernelReports\WATCHDOG' -ErrorAction SilentlyContinue |
     Sort-Object LastWriteTime -Descending |
@@ -103,6 +109,9 @@ foreach ($dir in $werDirs) {
     "Boot/display timeline:"
     (Get-Content -LiteralPath $bootTimeline | Out-String).Trim()
     ""
+    "Winlogon timeline:"
+    (Get-Content -LiteralPath $winlogonEvents | Out-String).Trim()
+    ""
     "GraphicsDrivers registry:"
     ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\GraphicsDrivers' -ErrorAction SilentlyContinue |
         Select-Object TdrDelay, TdrDdiDelay, TdrLimitTime, TdrLimitCount, TdrLevel) |
@@ -111,6 +120,17 @@ foreach ($dir in $werDirs) {
     "DWM registry:"
     ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\Dwm' -ErrorAction SilentlyContinue |
         Select-Object OverlayTestMode) |
+        Format-List | Out-String).Trim()
+    ""
+    "Lock and logon policies:"
+    ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Authentication\LogonUI\Background' -ErrorAction SilentlyContinue |
+        Select-Object OEMBackground) |
+        Format-List | Out-String).Trim()
+    ((Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\System' -ErrorAction SilentlyContinue |
+        Select-Object DisableAcrylicBackgroundOnLogon, DisableLockScreenAppNotifications, DisableLogonBackgroundImage, EnableFirstLogonAnimation) |
+        Format-List | Out-String).Trim()
+    ((Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization' -ErrorAction SilentlyContinue |
+        Select-Object NoLockScreen, NoLockScreenCamera, NoLockScreenSlideshow) |
         Format-List | Out-String).Trim()
     ""
     "User desktop effects:"
