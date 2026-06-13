@@ -91,8 +91,10 @@ See `docs/model-compatibility-analysis.md` for the full rationale and source-bac
 Recommended install: copy this one-liner into PowerShell and approve the UAC prompt:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { $tmp = Join-Path $env:TEMP 'Install-GT330M-StabilityFix.ps1'; try { Invoke-WebRequest 'https://raw.githubusercontent.com/rwflan/Macbook-6-2-GeForce-GT-330M-Driver-Fix/main/Install-GT330M-StabilityFix.ps1' -OutFile $tmp; & $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue } }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command '& { $tmp = Join-Path $env:TEMP "Install-GT330M-StabilityFix.ps1"; try { Invoke-WebRequest "https://raw.githubusercontent.com/rwflan/Macbook-6-2-GeForce-GT-330M-Driver-Fix/main/Install-GT330M-StabilityFix.ps1" -OutFile $tmp; & $tmp } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue } }'
 ```
+
+The outer single quotes are intentional. They prevent PowerShell 7 from expanding `$tmp` before the command is passed to Windows PowerShell.
 
 What it does:
 
